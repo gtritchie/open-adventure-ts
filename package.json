@@ -1,0 +1,28 @@
+{
+  "name": "open-adventure-ts",
+  "version": "1.0.0",
+  "description": "TypeScript port of Open Adventure (Colossal Cave Adventure 2.5)",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "generate": "tsx scripts/make-dungeon.ts",
+    "generate:check": "tsx scripts/make-dungeon.ts --check",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:regress": "tsx scripts/regress.ts",
+    "play": "tsx src/main.ts"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "4.0.9",
+    "@types/node": "22.13.4",
+    "js-yaml": "4.1.0",
+    "tsx": "4.19.3",
+    "typescript": "5.7.3",
+    "vitest": "3.0.5"
+  },
+  "license": "BSD-2-Clause"
+}
