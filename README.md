@@ -5,16 +5,16 @@ A TypeScript/Node.js port of [Open Adventure](https://gitlab.com/esr/open-advent
 ## Prerequisites
 
 - Node.js 24 or later
-- pnpm
+- pnpm or npm
 
 ## Getting Started
 
 ```bash
 # Install dependencies
-pnpm install
+pnpm install    # or: npm install
 
 # Play the game
-pnpm play
+pnpm play       # or: npm run play
 
 # Or equivalently:
 npx tsx src/main.ts
@@ -38,22 +38,22 @@ npx tsx src/main.ts < script.txt
 
 ```bash
 # Type-check
-pnpm typecheck
+pnpm typecheck              # or: npm run typecheck
 
 # Run unit tests
-pnpm test
+pnpm test                   # or: npm test
 
 # Run all 107 regression tests (TAP output)
-pnpm test:regress
+pnpm test:regress           # or: npm run test:regress
 
 # Run a single regression test
 npx tsx scripts/regress.ts --test pitfall
 
 # Regenerate dungeon data from adventure.yaml
-pnpm generate
+pnpm generate               # or: npm run generate
 
 # Verify generated dungeon data is up to date
-pnpm generate:check
+pnpm generate:check         # or: npm run generate:check
 ```
 
 ## Project Structure
