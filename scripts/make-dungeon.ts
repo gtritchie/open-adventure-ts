@@ -120,6 +120,11 @@ interface YamlDbRaw {
 
 function makeTsString(s: string | null | undefined): string {
   if (s == null) return "null";
+  // Convert literal escape sequences from YAML single-quoted strings
+  // to actual characters (C string literals auto-interpret these).
+  s = s.replace(/\\n/g, "\n");
+  s = s.replace(/\\t/g, "\t");
+  // Now escape for TS string literal output
   s = s.replace(/\\/g, "\\\\");
   s = s.replace(/"/g, '\\"');
   s = s.replace(/\n/g, "\\n");
@@ -322,7 +327,7 @@ function buildTravel(
       } else {
         condtype = "CondType.cond_not";
         condarg1 = cond % 100;
-        condarg2 = (cond - 300) / 100;
+        condarg2 = Math.trunc((cond - 300) / 100);
       }
 
       const dest = newloc % 1000;

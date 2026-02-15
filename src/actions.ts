@@ -62,6 +62,7 @@ import {
 
 // Format functions: (game, io, ...) parameter order
 import { speak, rspeak, pspeak, sspeak, stateChange } from "./format.js";
+import { silentYesOrNo, yesOrNo } from "./input.js";
 
 // Object manipulation: (game, ...)
 import { carry, drop, move, juggle, destroy, atdwrf } from "./object-manipulation.js";
@@ -90,60 +91,43 @@ function IS_DARK_HERE(game: GameState): boolean {
 
 const PIRATE = NDWARVES;
 
-// ── Score / Terminate stubs ──
+import {
+  terminate as scoreTerminate,
+  score as scoreScore,
+} from "./score.js";
 
-function score(
-  _game: GameState,
-  _io: GameIO,
-  _settings: Settings,
-  _mode: Termination,
-): number {
-  // Stub - will be replaced with real implementation from score.ts
-  return 0;
+// Wrapper to adapt format.ts (game, io, msg) to score.ts (io, game, msg) parameter order
+function rspeakAdapter(io: GameIO, game: GameState, msg: number, ...args: unknown[]): void {
+  rspeak(game, io, msg, ...(args as (string | number)[]));
+}
+function speakAdapter(io: GameIO, msg: string | null, ...args: unknown[]): void {
+  // speak in format.ts requires a game parameter, but the adapter caller doesn't provide one.
+  // We use the game from the closure — but speakAdapter is called only from terminate/score.
+  // However, speak from format.ts actually uses game for floor/ground substitution.
+  // For score display, there are no floor/ground substitutions, so we can pass a dummy.
+  // Actually, let's just call io.print directly since speak just prints blank line + message.
+  io.print("\n");
+  if (msg !== null) {
+    io.print(msg + "\n");
+  }
 }
 
 function terminate(
   game: GameState,
   io: GameIO,
-  settings: Settings,
+  _settings: Settings,
   mode: Termination,
 ): never {
-  score(game, io, settings, mode);
-  throw new TerminateError(0);
+  scoreTerminate(game, io, mode, rspeakAdapter, speakAdapter);
 }
 
-// ── I/O helpers (yes/no) ──
-
-async function silentYesOrNo(
-  io: GameIO,
-): Promise<boolean> {
-  const line = await io.readline("");
-  if (line === null) return false;
-  const word = line.trim().toLowerCase();
-  return word.startsWith("y");
-}
-
-async function yesOrNo(
+function score(
   game: GameState,
   io: GameIO,
-  question: string | null,
-  yesResponse: string | null,
-  noResponse: string | null,
-): Promise<boolean> {
-  if (question !== null) {
-    speak(game, io, question);
-  }
-  const result = await silentYesOrNo(io);
-  if (result) {
-    if (yesResponse !== null) {
-      speak(game, io, yesResponse);
-    }
-  } else {
-    if (noResponse !== null) {
-      speak(game, io, noResponse);
-    }
-  }
-  return result;
+  _settings: Settings,
+  mode: Termination,
+): number {
+  return scoreScore(game, io, mode, rspeakAdapter, speakAdapter);
 }
 
 // ── Individual action handlers ──
@@ -243,9 +227,9 @@ function attack(
 
   if (obj === Obj.DRAGON && game.objects[Obj.DRAGON]!.prop === ObjState.DRAGON_BARS) {
     rspeak(game, io, Msg.BARE_HANDS_QUERY);
-    return silentYesOrNo(io).then((yes) => {
+    return silentYesOrNo(game, io, settings).then((yes) => {
       if (!yes) {
-        speak(game, io, arbitraryMessages[Msg.NASTY_DRAGON]!);
+        rspeak(game, io, Msg.NASTY_DRAGON);
         return PhaseCode.GO_MOVE;
       }
       stateChange(game, io, Obj.DRAGON, ObjState.DRAGON_DEAD);
@@ -1371,6 +1355,7 @@ function quit(
   return yesOrNo(
     game,
     io,
+    settings,
     arbitraryMessages[Msg.REALLY_QUIT]!,
     arbitraryMessages[Msg.OK_MAN]!,
     arbitraryMessages[Msg.OK_MAN]!,
@@ -1413,6 +1398,7 @@ function read(
       return yesOrNo(
         game,
         io,
+        settings,
         arbitraryMessages[Msg.CLUE_QUERY]!,
         arbitraryMessages[Msg.WAYOUT_CLUE]!,
         arbitraryMessages[Msg.OK_MAN]!,

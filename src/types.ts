@@ -341,6 +341,8 @@ export interface SaveFile {
 export interface GameIO {
   print(msg: string): void;
   readline(prompt: string): Promise<string | null>;
+  /** Whether readline results should be echoed (true when piped/scripted). */
+  readonly echoInput: boolean;
 }
 
 // ── TerminateError: used instead of process.exit() in game logic ──
@@ -355,12 +357,6 @@ export class TerminateError extends Error {
 }
 
 // ── Predicate functions (C macros) ──
-
-import {
-  NOBJECTS,
-  NLOCATIONS,
-  type DungeonData,
-} from "./dungeon.js";
 
 export function TOTING(game: GameState, obj: number): boolean {
   return game.objects[obj]!.place === CARRIED;

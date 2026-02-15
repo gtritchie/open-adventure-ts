@@ -395,7 +395,7 @@ function listobjects(
       if (obj === Obj.STEPS && TOTING(game, Obj.NUGGET)) {
         continue;
       }
-      if (OBJECT_IS_STASHED(game, i) || OBJECT_IS_NOTFOUND(game, obj)) {
+      if (OBJECT_IS_STASHED(game, obj) || OBJECT_IS_NOTFOUND(game, obj)) {
         if (game.closed) {
           continue;
         }

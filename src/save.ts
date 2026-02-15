@@ -129,13 +129,22 @@ export async function resume(
     if (trimmed.length === 0) {
       return PhaseCode.GO_TOP;
     }
+    let data: string;
     try {
-      const data = readFileSync(trimmed, "utf-8");
-      const save = JSON.parse(data) as SaveFile;
-      return restore(save, game, io);
+      data = readFileSync(trimmed, "utf-8");
     } catch {
       io.print(`Can't open file ${trimmed}, try again.\n`);
+      continue;
     }
+    let save: SaveFile;
+    try {
+      save = JSON.parse(data) as SaveFile;
+    } catch {
+      // Not valid JSON — treat as bad magic
+      rspeak(game, io, Msg.BAD_SAVE);
+      return PhaseCode.GO_TOP;
+    }
+    return restore(save, game, io);
   }
 }
 

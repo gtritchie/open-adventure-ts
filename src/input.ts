@@ -16,6 +16,7 @@ import { Msg } from "./dungeon.js";
  * Port of get_input() from misc.c:234-273.
  * Gets a line of input, skipping comments (lines starting with #).
  * Prints a blank line before the prompt.
+ * Handles echo (when piped) and logging AFTER comment filtering.
  */
 export async function getInput(
   game: GameState,
@@ -34,13 +35,23 @@ export async function getInput(
       return null;
     }
 
-    // Ignore comments
+    // Ignore comments (no echo, no logging)
     if (input.startsWith("#")) {
       continue;
     }
 
     // Strip trailing newlines
     const stripped = input.replace(/\n+$/, "");
+
+    // Echo when piped/scripted (matching C misc.c:264-265)
+    if (io.echoInput) {
+      io.print(inputPrompt + stripped + "\n");
+    }
+
+    // Log if logging is enabled
+    if (settings.logfp) {
+      settings.logfp(stripped);
+    }
 
     return stripped;
   }

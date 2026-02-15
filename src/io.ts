@@ -7,24 +7,37 @@
 
 import { createInterface, type Interface } from "node:readline/promises";
 import type { GameIO, Settings } from "./types.js";
-import { PROMPT } from "./types.js";
 
 /**
  * ConsoleIO - Production I/O using node:readline/promises.
- * Handles echo-when-piped: when stdin is not a TTY, echoes "> input\n" to stdout.
- * Port of get_input() / echo_input() from misc.c:203-273.
+ * Port of myreadline() from misc.c.
+ *
+ * Echo and logging are NOT done here — they are handled by getInput()
+ * in input.ts after comment filtering, matching C's get_input() in misc.c:234-273.
+ *
+ * Uses an async line iterator internally because readline.question()
+ * doesn't work reliably with piped (non-TTY) input in Node.js — only
+ * the first question() resolves; subsequent calls hang indefinitely.
+ * In TTY mode, question() works fine and is used for prompt display.
  */
 export class ConsoleIO implements GameIO {
   private rl: Interface;
-  private settings: Settings;
+  readonly echoInput: boolean;
+  private isTTY: boolean;
+  private lineIterator: AsyncIterableIterator<string> | null = null;
 
   constructor(settings: Settings) {
-    this.settings = settings;
+    this.isTTY = process.stdin.isTTY === true;
+    this.echoInput = !this.isTTY;
     this.rl = createInterface({
       input: process.stdin,
       output: process.stdout,
-      terminal: process.stdin.isTTY === true,
+      terminal: this.isTTY,
     });
+    // For piped input, use async line iterator
+    if (!this.isTTY) {
+      this.lineIterator = this.rl[Symbol.asyncIterator]();
+    }
   }
 
   print(msg: string): void {
@@ -32,18 +45,21 @@ export class ConsoleIO implements GameIO {
   }
 
   async readline(prompt: string): Promise<string | null> {
-    const displayPrompt = this.settings.prompt ? prompt : "";
     try {
-      const line = await this.rl.question(displayPrompt);
-      // Echo when piped (stdin is not a TTY)
-      if (!process.stdin.isTTY) {
-        process.stdout.write(displayPrompt + line + "\n");
+      if (this.isTTY) {
+        // TTY mode: question() displays the prompt and reads a line
+        const line = await this.rl.question(prompt);
+        return line;
+      } else {
+        // Piped mode: use the line iterator (question() hangs after first call)
+        const result = await this.lineIterator!.next();
+        if (result.done) {
+          // Print prompt at EOF (matching C main.c:58 — fputs(prompt, stdout) on NULL)
+          process.stdout.write(prompt);
+          return null;
+        }
+        return result.value;
       }
-      // Log if logging is enabled
-      if (this.settings.logfp) {
-        this.settings.logfp(line);
-      }
-      return line;
     } catch {
       // EOF or error
       return null;
@@ -58,18 +74,19 @@ export class ConsoleIO implements GameIO {
 /**
  * ScriptIO - Test I/O that reads from string array, captures output to buffer.
  * Used for regression testing to match C test infrastructure.
+ *
+ * Like ConsoleIO in piped mode, echo and logging are handled by getInput().
  */
 export class ScriptIO implements GameIO {
   private lines: readonly string[];
   private index: number;
   private outputBuffer: string[];
-  private settings: Settings;
+  readonly echoInput: boolean = true;
 
-  constructor(lines: readonly string[], settings: Settings) {
+  constructor(lines: readonly string[], _settings: Settings) {
     this.lines = lines;
     this.index = 0;
     this.outputBuffer = [];
-    this.settings = settings;
   }
 
   print(msg: string): void {
@@ -81,13 +98,6 @@ export class ScriptIO implements GameIO {
       return null;
     }
     const line = this.lines[this.index++]!;
-    const displayPrompt = this.settings.prompt ? PROMPT : "";
-    // Always echo in script mode (mimics piped behavior)
-    this.outputBuffer.push(displayPrompt + line + "\n");
-    // Log if logging is enabled
-    if (this.settings.logfp) {
-      this.settings.logfp(line);
-    }
     return line;
   }
 
