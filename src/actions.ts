@@ -55,6 +55,10 @@ import {
   conditions,
 } from "./dungeon.js";
 import { randrange, setSeed } from "./rng.js";
+import {
+  suspend as suspendSave,
+  resume as resumeSave,
+} from "./save.js";
 
 // Format functions: (game, io, ...) parameter order
 import { speak, rspeak, pspeak, sspeak, stateChange } from "./format.js";
@@ -1692,14 +1696,22 @@ function wave(
   }
 }
 
-// ── Save/Resume stubs ──
+// ── Save/Resume ──
 
-function suspend(): PhaseCode {
-  return PhaseCode.GO_TOP;
+async function suspend(
+  game: GameState,
+  settings: Settings,
+  io: GameIO,
+): Promise<PhaseCode> {
+  return suspendSave(game, settings, io);
 }
 
-function resume(): PhaseCode {
-  return PhaseCode.GO_TOP;
+async function resumeGame(
+  game: GameState,
+  settings: Settings,
+  io: GameIO,
+): Promise<PhaseCode> {
+  return resumeSave(game, settings, io);
 }
 
 // ── Main action dispatcher ──
@@ -1838,9 +1850,9 @@ export async function action(
           case Action.WAKE:
             return PhaseCode.GO_UNKNOWN;
           case Action.SAVE:
-            return suspend();
+            return suspend(game, settings, io);
           case Action.RESUME:
-            return resume();
+            return resumeGame(game, settings, io);
           case Action.FLY:
             return fly(game, io, command.verb, INTRANSITIVE);
           case Action.LISTEN:
