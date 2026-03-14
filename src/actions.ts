@@ -441,6 +441,15 @@ function vcarry(
       return PhaseCode.GO_UNKNOWN;
     }
     obj = game.locs[game.loc]!.atloc;
+    // atloc chain can contain fixed-object entries (> NOBJECTS) from
+    // juggle(). In C this reads past the objects array (UB) — the
+    // garbage values cause it to fall through to carry() + "OK".
+    // Match that behavior to stay byte-identical on this edge case.
+    if (obj > NOBJECTS) {
+      carry(game, obj, game.loc);
+      rspeak(game, io, Msg.OK_MAN);
+      return PhaseCode.GO_CLEAROBJ;
+    }
   }
 
   if (TOTING(game, obj)) {
