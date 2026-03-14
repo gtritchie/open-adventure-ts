@@ -2,6 +2,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 *.adv
+tests/scratch.tmp
 
 # Claude Code
 .claude/settings.local.json
