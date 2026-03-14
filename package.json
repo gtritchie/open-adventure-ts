@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:regress": "tsx scripts/regress.ts",
+    "generate:graph": "tsx scripts/make-graph.ts",
     "play": "tsx src/main.ts"
   },
   "devDependencies": {

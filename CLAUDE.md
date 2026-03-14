@@ -19,6 +19,7 @@ pnpm test                           # Unit tests (vitest)
 pnpm test:regress                   # All 107 regression tests (TAP output)
 pnpm test:regress --test pitfall    # Single regression test by name
 pnpm test:regress --update          # Regenerate .chk files from current output
+pnpm generate:graph                 # Generate Graphviz DOT of dungeon map (stdout)
 pnpm play                           # Play interactively
 ```
 
@@ -42,6 +43,7 @@ The YAML file defines all game data (locations, objects, verbs, travel tables, h
 | `misc.c` | `format.ts`, `vocabulary.ts`, `input.ts` |
 | `init.c` | `init.ts` (state initialization) |
 | `make_dungeon.py` | `scripts/make-dungeon.ts` |
+| `make_graph.py` | `scripts/make-graph.ts` |
 
 ### Dependency Injection Pattern
 
