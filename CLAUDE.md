@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TypeScript port of [Open Adventure](https://gitlab.com/esr/open-adventure) (Colossal Cave Adventure 2.5). The goal is **byte-identical gameplay output** compared to the original C version. All 107 regression tests validate this by comparing stdout byte-for-byte against expected output.
 
+The source code for the original Open Adventure is found in `../open-adventure` (relative to the project root).
+
 ## Commands
 
 ```bash
