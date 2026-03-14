@@ -69,6 +69,27 @@ Some tests are chained (e.g., `saveresume.1` through `saveresume.4`) and must ru
 
 The test runner auto-generates save file fixtures via `src/cheat.ts` before running.
 
+## Cross-Comparison and Fuzz Testing
+
+These scripts require the C `advent` binary built in `../open-adventure`. They compare TS output directly against the C binary (not `.chk` files), catching drift and edge-case divergences. **Run these after any gameplay change**, especially changes to action handlers, movement, or output formatting.
+
+```bash
+# Cross-compare: runs every .log test against both C and TS, diffs stdout
+npx tsx scripts/cross-compare.ts              # All tests
+npx tsx scripts/cross-compare.ts --test NAME  # Single test
+npx tsx scripts/cross-compare.ts --verbose    # Show diffs on failure
+
+# Fuzz testing: random command sequences compared C vs TS
+npx tsx scripts/fuzz-compare.ts                    # 100 runs, 50 commands each
+npx tsx scripts/fuzz-compare.ts --runs 500         # More runs
+npx tsx scripts/fuzz-compare.ts --length 200       # Longer command sequences
+npx tsx scripts/fuzz-compare.ts --seed 42          # Start from specific seed
+npx tsx scripts/fuzz-compare.ts --verbose          # Show diffs on failure
+npx tsx scripts/fuzz-compare.ts --repro 42         # Reproduce a single failing seed
+```
+
+Both produce TAP output. The fuzz tester uses deterministic seeds so failures are fully reproducible — use `--repro <seed>` to replay.
+
 ## Key Constraints
 
 - **Byte-identical output**: Any change to game logic or formatting must preserve exact output matching the C version. Run `pnpm test:regress` after any gameplay change.
