@@ -1575,8 +1575,7 @@ export { runGame, type RunGameOptions } from "./run-game.js";
 export { createGameState, createSettings, initialise } from "./init.js";
 
 // Pure save helpers
-export { serializeGame, deserializeGame, summarizeSave } from "./save-pure.js";
-export { savefile } from "./save.js";
+export { serializeGame, deserializeGame, summarizeSave, savefile } from "./save-pure.js";
 
 // In-memory IO for tests/hosts that want it
 export { ScriptIO } from "./test-io.js";
@@ -1719,19 +1718,18 @@ import { ConsoleIO } from "./console-io.js";
 import { NodeFileStorage } from "./node-storage.js";
 ```
 
-In `packages/cli/src/cheat.ts`, replace internal imports the same way. The current cheat.ts imports `createGameState`, `createSettings`, `initialise` from `./init.js` and `savefile` from `./save.js` (and after Task 1, `ScriptIO` from `./io.js`). All of those move to `@open-adventure/core`:
+In `packages/cli/src/cheat.ts`, replace internal imports the same way. After Task 3 the current cheat.ts imports `createGameState`, `createSettings`, `initialise` from `./init.js` and `savefile` from `./save.js` (which itself re-exports `savefile` from `./save-pure.js`). All of those move to `@open-adventure/core`:
 
 ```typescript
 import {
   createGameState,
   createSettings,
   initialise,
-  ScriptIO,
+  savefile,
 } from "@open-adventure/core";
-import { savefile } from "@open-adventure/core";
 ```
 
-(If `savefile` isn't on the public barrel, either add it to the barrel or have cheat reach into the deep path. Recommended: add to barrel for symmetry with `serializeGame` and friends.)
+(Note: cheat.ts no longer imports `ScriptIO` from `./io.js` — Task 1's review removed that in favour of an inline discard `GameIO` literal.)
 
 In `packages/cli/src/node-storage.ts`, change:
 

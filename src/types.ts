@@ -354,11 +354,12 @@ export interface SaveFile {
 
 export type RestoreResult =
   | { ok: true; state: GameState }
+  | { ok: false; reason: "bad-json" | "bad-magic" | "tampering"; message: string }
   | {
       ok: false;
-      reason: "bad-json" | "bad-magic" | "version-skew" | "tampering";
-      saveVersion?: number;
-      expectedVersion?: number;
+      reason: "version-skew";
+      saveVersion: number;
+      expectedVersion: number;
       message: string;
     };
 
