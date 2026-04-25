@@ -18,6 +18,6 @@
     "esModuleInterop": false,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*.ts", "packages/core/src/**/*.ts", "scripts/**/*.ts"],
+  "include": ["src/**/*.ts", "packages/core/src/**/*.ts", "packages/core/scripts/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
