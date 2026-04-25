@@ -1363,7 +1363,7 @@ packages:
 
 - [ ] **Step 7: Update root package.json**
 
-Keep root devDependencies (tsx, typescript, vitest, etc.). Replace workspace scripts with delegation:
+Add `"private": true` so pnpm treats the root as a workspace root (not a publishable package). Leave the script bodies pointing at the LEGACY paths (`tsc`, `tsx scripts/make-dungeon.ts`, `tsx src/main.ts`, etc.) — the empty packages have no source yet, so delegating to them now would break `pnpm build`, `pnpm generate`, and `pnpm play`. Tasks 8 and 10 re-delegate each script as the corresponding source files move.
 
 ```json
 {
@@ -1374,15 +1374,15 @@ Keep root devDependencies (tsx, typescript, vitest, etc.). Replace workspace scr
   "private": true,
   "engines": { "node": ">=24.0.0" },
   "scripts": {
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
-    "generate": "pnpm --filter @open-adventure/core generate",
-    "generate:check": "pnpm --filter @open-adventure/core generate:check",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "generate": "tsx scripts/make-dungeon.ts",
+    "generate:check": "tsx scripts/make-dungeon.ts --check",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:regress": "tsx scripts/regress.ts",
-    "generate:graph": "pnpm --filter @open-adventure/core exec tsx scripts/make-graph.ts",
-    "play": "pnpm --filter @open-adventure/cli play"
+    "generate:graph": "tsx scripts/make-graph.ts",
+    "play": "tsx src/main.ts"
   },
   "devDependencies": {
     "@types/js-yaml": "4.0.9",
@@ -1393,6 +1393,22 @@ Keep root devDependencies (tsx, typescript, vitest, etc.). Replace workspace scr
     "vitest": "3.0.5"
   },
   "license": "BSD-2-Clause"
+}
+```
+
+The end-state delegated form (after Tasks 8 and 10 complete) is:
+
+```json
+"scripts": {
+  "build": "pnpm -r build",
+  "typecheck": "pnpm -r typecheck",
+  "generate": "pnpm --filter @open-adventure/core generate",
+  "generate:check": "pnpm --filter @open-adventure/core generate:check",
+  "test": "vitest run",
+  "test:watch": "vitest",
+  "test:regress": "tsx scripts/regress.ts",
+  "generate:graph": "pnpm --filter @open-adventure/core exec tsx scripts/make-graph.ts",
+  "play": "pnpm --filter @open-adventure/cli play"
 }
 ```
 
@@ -1493,10 +1509,22 @@ pnpm --filter @open-adventure/core test
 
 Expected: vitest finds `save-pure.test.ts` and `save-summary.test.ts` under `packages/core/src/`, both pass.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Re-delegate root scripts that target moved sources**
+
+The legacy `tsx scripts/make-dungeon.ts` form no longer works — the script and its yaml input live under `packages/core/` now. Update the relevant entries in root `package.json`:
+
+```json
+"generate": "pnpm --filter @open-adventure/core generate",
+"generate:check": "pnpm --filter @open-adventure/core generate:check",
+"generate:graph": "pnpm --filter @open-adventure/core exec tsx scripts/make-graph.ts",
+```
+
+Leave `build`, `typecheck`, and `play` pointing at legacy paths for one more task — `pnpm -r build` would still fail in `cli` (no source until Task 10), and `tsx src/main.ts` is still where the CLI entry lives. Task 10 finishes the script-delegation transition.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add packages/core/ src/ adventure.yaml scripts/ -A
+git add packages/core/ src/ adventure.yaml scripts/ package.json -A
 git commit -m "Move core source files into packages/core/"
 ```
 
@@ -1776,10 +1804,22 @@ pnpm test
 
 Expected: `save-pure.test.ts`, `save-summary.test.ts`, `node-storage.test.ts` all pass.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 8: Re-delegate the remaining root scripts**
+
+CLI source now lives in `packages/cli/src/` and both packages have buildable source. Switch the remaining root scripts to the workspace-delegated form:
+
+```json
+"build": "pnpm -r build",
+"typecheck": "pnpm -r typecheck",
+"play": "pnpm --filter @open-adventure/cli play"
+```
+
+After this step, `package.json` matches the end-state form documented in Task 7.
+
+- [ ] **Step 9: Commit**
 
 ```bash
-git add packages/ src/ vitest.config.ts -A
+git add packages/ src/ vitest.config.ts package.json -A
 git commit -m "Split io.ts; move CLI files into packages/cli/"
 ```
 
