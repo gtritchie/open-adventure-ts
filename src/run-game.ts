@@ -26,7 +26,17 @@ export interface RunGameOptions {
 export async function runGame(opts: RunGameOptions): Promise<number> {
   const state = opts.state ?? createGameState();
   const settings = createSettings();
-  Object.assign(settings, opts.settings ?? {});
+  // Filter undefined values so callers spreading partially-built config objects
+  // don't clobber Settings fields with undefined under exactOptionalPropertyTypes.
+  // opts.storage is authoritative — it always wins over any storage in opts.settings.
+  if (opts.settings !== undefined) {
+    for (const key of Object.keys(opts.settings) as (keyof Settings)[]) {
+      const val = opts.settings[key];
+      if (val !== undefined) {
+        (settings as Record<keyof Settings, unknown>)[key] = val;
+      }
+    }
+  }
   settings.storage = opts.storage;
 
   const seedval = initialise(state, settings, opts.io);

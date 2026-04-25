@@ -10,6 +10,7 @@ import { parseArgs } from "node:util";
 import type { Settings } from "./types.js";
 import { TerminateError } from "./types.js";
 import { ConsoleIO, ScriptIO } from "./io.js";
+import { createSettings } from "./init.js";
 import { runGame } from "./run-game.js";
 import { NodeFileStorage } from "./node-storage.js";
 
@@ -83,10 +84,10 @@ async function main(): Promise<void> {
       }
     }
     if (allLines.length > 0) {
-      io = new ScriptIO(allLines, {} as never);
+      io = new ScriptIO(allLines, createSettings());
     }
   }
-  if (io === undefined) io = new ConsoleIO({} as never);
+  if (io === undefined) io = new ConsoleIO(createSettings());
 
   const runOpts = {
     io,
