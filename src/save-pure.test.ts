@@ -83,4 +83,27 @@ describe("serializeGame / deserializeGame", () => {
     const result = deserializeGame(json);
     expect(result).toMatchObject({ ok: false, reason: "tampering" });
   });
+
+  it("rejects header-valid JSON with an empty game object as tampering", () => {
+    const json = JSON.stringify({
+      magic: "open-adventure\n",
+      version: 31,
+      canary: 2317,
+      game: {},
+    });
+    const result = deserializeGame(json);
+    expect(result).toMatchObject({ ok: false, reason: "tampering" });
+  });
+
+  it("rejects header-valid JSON whose game object lacks required arrays", () => {
+    const json = JSON.stringify({
+      magic: "open-adventure\n",
+      version: 31,
+      canary: 2317,
+      // valid scalar field but no dwarves/objects/locs/link arrays
+      game: { abbnum: 1, lcgX: 0 },
+    });
+    const result = deserializeGame(json);
+    expect(result).toMatchObject({ ok: false, reason: "tampering" });
+  });
 });

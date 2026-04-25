@@ -43,7 +43,20 @@ export function deserializeGame(json: string): RestoreResult {
       message: `Save was version ${save.version}; expected ${SAVE_VERSION}.`,
     };
   }
-  if (!isObject(save.game) || !isValid(save.game as GameState)) {
+  if (!isObject(save.game)) {
+    return { ok: false, reason: "tampering", message: "Save file failed integrity check." };
+  }
+  // isValid() dereferences nested arrays (dwarves, objects, locs, link) without
+  // shape-checking them, so a header-valid payload with a partial game object
+  // can throw instead of returning false. Catch here to honour the contract
+  // that deserializeGame never throws.
+  let valid = false;
+  try {
+    valid = isValid(save.game as GameState);
+  } catch {
+    valid = false;
+  }
+  if (!valid) {
     return { ok: false, reason: "tampering", message: "Save file failed integrity check." };
   }
   return { ok: true, state: save.game as GameState };
