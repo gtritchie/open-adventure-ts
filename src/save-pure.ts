@@ -12,6 +12,10 @@ export function serializeGame(state: GameState): string {
   return JSON.stringify(savefile(state));
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 export function deserializeGame(json: string): RestoreResult {
   let raw: unknown;
   try {
@@ -19,8 +23,15 @@ export function deserializeGame(json: string): RestoreResult {
   } catch {
     return { ok: false, reason: "bad-json", message: "Save file is not valid JSON." };
   }
-  const save = raw as SaveFile;
-  if (save.magic !== ADVENT_MAGIC || save.canary !== ENDIAN_MAGIC) {
+  if (!isObject(raw)) {
+    return { ok: false, reason: "bad-magic", message: "Save file is not an Open Adventure save." };
+  }
+  const save = raw as Partial<SaveFile>;
+  if (
+    save.magic !== ADVENT_MAGIC ||
+    save.canary !== ENDIAN_MAGIC ||
+    typeof save.version !== "number"
+  ) {
     return { ok: false, reason: "bad-magic", message: "Save file is not an Open Adventure save." };
   }
   if (save.version !== SAVE_VERSION) {
@@ -32,8 +43,8 @@ export function deserializeGame(json: string): RestoreResult {
       message: `Save was version ${save.version}; expected ${SAVE_VERSION}.`,
     };
   }
-  if (!isValid(save.game)) {
+  if (!isObject(save.game) || !isValid(save.game as GameState)) {
     return { ok: false, reason: "tampering", message: "Save file failed integrity check." };
   }
-  return { ok: true, state: save.game };
+  return { ok: true, state: save.game as GameState };
 }

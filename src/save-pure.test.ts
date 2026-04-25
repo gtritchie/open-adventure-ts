@@ -51,4 +51,36 @@ describe("serializeGame / deserializeGame", () => {
       expectedVersion: 31,
     });
   });
+
+  it("rejects JSON null as bad-magic", () => {
+    const result = deserializeGame("null");
+    expect(result).toMatchObject({ ok: false, reason: "bad-magic" });
+  });
+
+  it("rejects a primitive payload as bad-magic", () => {
+    const result = deserializeGame("42");
+    expect(result).toMatchObject({ ok: false, reason: "bad-magic" });
+  });
+
+  it("rejects header-valid JSON missing the game field as tampering", () => {
+    const json = JSON.stringify({
+      magic: "open-adventure\n",
+      version: 31,
+      canary: 2317,
+      // game intentionally absent
+    });
+    const result = deserializeGame(json);
+    expect(result).toMatchObject({ ok: false, reason: "tampering" });
+  });
+
+  it("rejects header-valid JSON whose game field is not an object", () => {
+    const json = JSON.stringify({
+      magic: "open-adventure\n",
+      version: 31,
+      canary: 2317,
+      game: "not-an-object",
+    });
+    const result = deserializeGame(json);
+    expect(result).toMatchObject({ ok: false, reason: "tampering" });
+  });
 });
