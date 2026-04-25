@@ -363,6 +363,19 @@ export type RestoreResult =
       message: string;
     };
 
+export interface SaveSummary {
+  locationName: string;
+  score: number;
+  maxScore: number;
+  treasuresFound: number;
+  treasuresTotal: number;
+  inventory: string[];
+  phase: "pre-cave" | "in-cave" | "closing" | "closed";
+  saveVersion: number;
+  currentVersion: number;
+  compatible: boolean;
+}
+
 // ── GameIO interface ──
 
 export interface GameIO {

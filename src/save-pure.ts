@@ -4,7 +4,7 @@
  * SPDX-FileCopyrightText: (C) 1977, 2005 by Will Crowther and Don Woods
  * SPDX-License-Identifier: BSD-2-Clause
  */
-import type { GameState, SaveFile, RestoreResult } from "./types.js";
+import type { GameState, SaveFile, RestoreResult, SaveSummary } from "./types.js";
 import {
   ADVENT_MAGIC,
   ENDIAN_MAGIC,
@@ -12,6 +12,9 @@ import {
   LCG_M,
   STATE_NOTFOUND,
   PROP_IS_INVALID,
+  CARRIED,
+  OUTSIDE,
+  Termination,
 } from "./types.js";
 import {
   NLOCATIONS,
@@ -19,8 +22,11 @@ import {
   NDWARVES,
   NDEATHS,
   objects,
+  locations,
+  conditions,
   MAX_STATE,
 } from "./dungeon.js";
+import { computeScore } from "./score.js";
 
 /**
  * Build a SaveFile object from the current game state.
@@ -197,4 +203,76 @@ export function isValid(valgame: GameState): boolean {
   }
 
   return true;
+}
+
+export function summarizeSave(
+  jsonOrState: string | GameState,
+): SaveSummary | { error: string } {
+  let state: GameState;
+  let saveVersion = SAVE_VERSION;
+
+  if (typeof jsonOrState === "string") {
+    const result = deserializeGame(jsonOrState);
+    if (!result.ok) {
+      return { error: result.message };
+    }
+    state = result.state;
+    // Re-parse to recover the version field (deserializeGame discards it on success).
+    const raw = JSON.parse(jsonOrState) as { version?: number };
+    if (typeof raw.version === "number") saveVersion = raw.version;
+  } else {
+    state = jsonOrState;
+  }
+
+  const loc = locations[state.loc];
+  // Prefer the short/terse form for picker UIs; fall back to big, then numeric label.
+  const locationName =
+    loc?.description.small ?? loc?.description.big ?? `loc#${state.loc}`;
+
+  let treasuresTotal = 0;
+  let treasuresNotFound = 0;
+  for (let i = 1; i <= NOBJECTS; i++) {
+    if (objects[i]!.isTreasure) {
+      treasuresTotal++;
+      // STATE_NOTFOUND (-1) means the treasure hasn't been encountered yet.
+      // We count directly from props rather than relying on state.tally because
+      // tally is only valid after initialise() runs.
+      if (state.objects[i]!.prop === STATE_NOTFOUND) {
+        treasuresNotFound++;
+      }
+    }
+  }
+  const treasuresFound = treasuresTotal - treasuresNotFound;
+
+  const inventory: string[] = [];
+  for (let i = 1; i <= NOBJECTS; i++) {
+    if (state.objects[i]?.place === CARRIED) {
+      const inv = objects[i]?.inventory;
+      if (inv) inventory.push(inv);
+    }
+  }
+
+  // Phase derived from condition bits — enum ordering is not a reliable
+  // indoor/outdoor signal since above-ground locations like LOC_VALLEY and
+  // LOC_FOREST* sit after LOC_BUILDING in the generated enum.
+  let phase: SaveSummary["phase"];
+  if (state.closed) phase = "closed";
+  else if (state.closng) phase = "closing";
+  else if (OUTSIDE(conditions, state.loc)) phase = "pre-cave";
+  else phase = "in-cave";
+
+  const { points, max } = computeScore(state, Termination.endgame);
+
+  return {
+    locationName,
+    score: points,
+    maxScore: max,
+    treasuresFound,
+    treasuresTotal,
+    inventory,
+    phase,
+    saveVersion,
+    currentVersion: SAVE_VERSION,
+    compatible: saveVersion === SAVE_VERSION,
+  };
 }
