@@ -29,7 +29,12 @@ describe("NodeFileStorage", () => {
   it("delete removes the file", async () => {
     const path = join(dir, "doomed.adv");
     await storage.write(path, "data");
-    await storage.delete!(path);
+    await storage.delete(path);
     expect(await storage.read(path)).toBe(null);
+  });
+
+  it("write throws when the parent directory does not exist", async () => {
+    const path = join(dir, "no-such-subdir", "foo.adv");
+    await expect(storage.write(path, "x")).rejects.toThrow();
   });
 });
