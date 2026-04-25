@@ -155,17 +155,19 @@ export function initialise(
 
 In `src/main.ts`, the call site is currently `const seedval = initialise(gameState, settings);`. Update it to `const seedval = initialise(gameState, settings, io);` — but `io` is constructed *after* `initialise` in current `main.ts`. Move IO construction up so it precedes the `initialise` call.
 
-In `src/cheat.ts` (line 44), the call site is `initialise(game, settings);`. The cheat utility never produces user-facing output from `initialise()` (it doesn't run in `oldstyle` mode), so a discard IO is appropriate. Use `ScriptIO` from `io.ts` with empty input:
+In `src/cheat.ts` (line 44), the call site is `initialise(game, settings);`. The cheat utility never produces user-facing output from `initialise()` (it doesn't run in `oldstyle` mode), so a discard IO is appropriate. Use an inline `GameIO` literal — not `ScriptIO`. `ScriptIO` is a test-capture class; using it as a discard sink is misleading, and once Task 9 promotes `ScriptIO` into core's `test-io.ts`, having a CLI utility import a test-only export is a layering violation.
 
 ```typescript
-import { ScriptIO } from "./io.js";
+import type { GameIO } from "./types.js";
 
 // ...
-const io = new ScriptIO([], settings);
+const io: GameIO = {
+  print(): void { /* discard */ },
+  async readline(): Promise<string | null> { return null; },
+  echoInput: false,
+};
 initialise(game, settings, io);
 ```
-
-The `ScriptIO` instance buffers the (unused) "Initialising..." string into its output buffer if it ever fires. cheat.ts never reads that buffer, so it's harmless.
 
 - [ ] **Step 5: Route the rng debug log through debugCallback**
 
@@ -182,17 +184,20 @@ function getNextLcgValue(game: GameState, settings: Settings): number {
 }
 ```
 
-- [ ] **Step 6: Wire CLI debug callback to stderr**
+- [ ] **Step 6: Wire CLI debug callback to stderr (only when -d is passed)**
 
-In `src/main.ts`, after `createSettings()`, set:
+In `src/main.ts`, fold the `debugCallback` assignment into the existing `if (vals.d)` block so the field stays `null` on non-debug runs (matching its `createSettings()` default and avoiding a misleading non-null state that consumers might check):
 
 ```typescript
-settings.debugCallback = (msg: string): void => {
-  process.stderr.write(msg);
-};
+if (vals.d) {
+  settings.debug += 1;
+  settings.debugCallback = (msg: string): void => {
+    process.stderr.write(msg);
+  };
+}
 ```
 
-This preserves CLI behavior exactly.
+This preserves CLI behavior exactly: today's `process.stderr.write` in `rng.ts` was guarded by `if (settings.debug)`, so it only fired with `-d`. The new path is identical.
 
 - [ ] **Step 7: Run regression tests**
 

@@ -237,11 +237,10 @@ async function main(): Promise<void> {
   // -d debug mode
   if (vals.d) {
     settings.debug += 1;
+    settings.debugCallback = (msg: string): void => {
+      process.stderr.write(msg);
+    };
   }
-
-  settings.debugCallback = (msg: string): void => {
-    process.stderr.write(msg);
-  };
 
   // -o oldstyle mode
   if (vals.o) {
