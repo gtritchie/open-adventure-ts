@@ -132,7 +132,6 @@ export function score(
   io: GameIO,
   mode: Termination,
   rspeak: (io: GameIO, game: GameState, msg: number, ...args: unknown[]) => void,
-  _speak: (io: GameIO, msg: string | null, ...args: unknown[]) => void,
 ): number {
   const { points, max } = computeScore(game, mode);
   mxscor = max;
@@ -152,7 +151,7 @@ export function terminate(
   rspeak: (io: GameIO, game: GameState, msg: number, ...args: unknown[]) => void,
   speak: (io: GameIO, msg: string | null, ...args: unknown[]) => void,
 ): never {
-  const points = score(game, io, mode, rspeak, speak);
+  const points = score(game, io, mode, rspeak);
 
   if (points + game.trnluz + 1 >= mxscor && game.trnluz !== 0) {
     rspeak(io, game, Msg.TOOK_LONG);

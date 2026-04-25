@@ -49,13 +49,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-export function deserializeGame(json: string): RestoreResult {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(json);
-  } catch {
-    return { ok: false, reason: "bad-json", message: "Save file is not valid JSON." };
-  }
+function deserializeFromObject(raw: unknown): RestoreResult {
   if (!isObject(raw)) {
     return { ok: false, reason: "bad-magic", message: "Save file is not an Open Adventure save." };
   }
@@ -82,7 +76,7 @@ export function deserializeGame(json: string): RestoreResult {
   // isValid() dereferences nested arrays (dwarves, objects, locs, link) without
   // shape-checking them, so a header-valid payload with a partial game object
   // can throw instead of returning false. Catch here to honour the contract
-  // that deserializeGame never throws.
+  // that deserializeFromObject never throws.
   let valid = false;
   try {
     valid = isValid(save.game as GameState);
@@ -93,6 +87,16 @@ export function deserializeGame(json: string): RestoreResult {
     return { ok: false, reason: "tampering", message: "Save file failed integrity check." };
   }
   return { ok: true, state: save.game as GameState };
+}
+
+export function deserializeGame(json: string): RestoreResult {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    return { ok: false, reason: "bad-json", message: "Save file is not valid JSON." };
+  }
+  return deserializeFromObject(raw);
 }
 
 /**
@@ -205,40 +209,34 @@ export function isValid(valgame: GameState): boolean {
   return true;
 }
 
-export function summarizeSave(
-  jsonOrState: string | GameState,
-): SaveSummary | { error: string } {
-  let state: GameState;
-  let saveVersion = SAVE_VERSION;
+type ParsedHeader =
+  | { ok: true; raw: Record<string, unknown>; version: number }
+  | { ok: false; error: string }
+  | { ok: false; partial: SaveSummary };
 
-  if (typeof jsonOrState === "string") {
-    // Step 1: parse JSON
-    let raw: unknown;
-    try {
-      raw = JSON.parse(jsonOrState);
-    } catch {
-      return { error: "Save file is not valid JSON." };
-    }
-
-    // Step 2: verify it's a non-null object
-    if (!isObject(raw)) {
-      return { error: "Save file is not an Open Adventure save." };
-    }
-
-    // Step 3: read header fields
-    const header = raw as Record<string, unknown>;
-    const magic = header["magic"];
-    const canary = header["canary"];
-    const version = header["version"];
-
-    // Step 4: verify magic/canary/version type
-    if (magic !== ADVENT_MAGIC || canary !== ENDIAN_MAGIC || typeof version !== "number") {
-      return { error: "Save file is not an Open Adventure save." };
-    }
-
-    // Step 5: version-skew returns partial summary with compatible: false
-    if (version !== SAVE_VERSION) {
-      return {
+function parseSaveHeader(json: string): ParsedHeader {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    return { ok: false, error: "Save file is not valid JSON." };
+  }
+  if (!isObject(raw)) {
+    return { ok: false, error: "Save file is not an Open Adventure save." };
+  }
+  const obj = raw as Record<string, unknown>;
+  if (
+    obj["magic"] !== ADVENT_MAGIC ||
+    obj["canary"] !== ENDIAN_MAGIC ||
+    typeof obj["version"] !== "number"
+  ) {
+    return { ok: false, error: "Save file is not an Open Adventure save." };
+  }
+  const version = obj["version"] as number;
+  if (version !== SAVE_VERSION) {
+    return {
+      ok: false,
+      partial: {
         locationName: "(incompatible save)",
         score: 0,
         maxScore: 0,
@@ -249,20 +247,13 @@ export function summarizeSave(
         saveVersion: version,
         currentVersion: SAVE_VERSION,
         compatible: false,
-      };
-    }
-
-    // Step 6: full validation via deserializeGame
-    const result = deserializeGame(jsonOrState);
-    if (!result.ok) {
-      return { error: result.message };
-    }
-    state = result.state;
-    saveVersion = version;
-  } else {
-    state = jsonOrState;
+      },
+    };
   }
+  return { ok: true, raw: obj, version };
+}
 
+function buildSummary(state: GameState, saveVersion: number): SaveSummary {
   const loc = locations[state.loc];
   // Prefer the short/terse form for picker UIs; fall back to big, then numeric label.
   const locationName =
@@ -314,4 +305,21 @@ export function summarizeSave(
     currentVersion: SAVE_VERSION,
     compatible: saveVersion === SAVE_VERSION,
   };
+}
+
+export function summarizeSave(
+  jsonOrState: string | GameState,
+): SaveSummary | { error: string } {
+  if (typeof jsonOrState !== "string") {
+    return buildSummary(jsonOrState, SAVE_VERSION);
+  }
+  const header = parseSaveHeader(jsonOrState);
+  if (!header.ok) {
+    return "partial" in header ? header.partial : { error: header.error };
+  }
+  // We already have the parsed object from parseSaveHeader; pass it directly to
+  // deserializeFromObject to avoid a second JSON.parse on the happy path.
+  const result = deserializeFromObject(header.raw);
+  if (!result.ok) return { error: result.message };
+  return buildSummary(result.state, header.version);
 }

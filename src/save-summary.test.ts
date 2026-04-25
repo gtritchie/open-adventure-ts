@@ -1,15 +1,20 @@
 import { describe, it, expect } from "vitest";
 import { serializeGame, summarizeSave } from "./save-pure.js";
 import { createGameState, initialise, createSettings } from "./init.js";
-import { ScriptIO } from "./io.js";
+import type { GameIO } from "./types.js";
 import { computeScore } from "./score.js";
 import { Termination, ADVENT_MAGIC, ENDIAN_MAGIC, SAVE_VERSION } from "./types.js";
+
+const discardIO: GameIO = {
+  print(): void { /* discard */ },
+  async readline(): Promise<string | null> { return null; },
+  echoInput: false,
+};
 
 function makeInitialisedState() {
   const state = createGameState();
   const settings = createSettings();
-  const io = new ScriptIO([], settings);
-  initialise(state, settings, io);
+  initialise(state, settings, discardIO);
   return state;
 }
 

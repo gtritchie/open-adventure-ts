@@ -127,7 +127,7 @@ function score(
   _settings: Settings,
   mode: Termination,
 ): number {
-  return scoreScore(game, io, mode, rspeakAdapter, speakAdapter);
+  return scoreScore(game, io, mode, rspeakAdapter);
 }
 
 // ── Individual action handlers ──
