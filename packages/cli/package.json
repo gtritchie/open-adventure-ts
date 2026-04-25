@@ -1,0 +1,17 @@
+{
+  "name": "@open-adventure/cli",
+  "version": "1.0.0",
+  "description": "Open Adventure terminal CLI",
+  "type": "module",
+  "bin": { "advent": "./dist/main.js" },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "play": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@open-adventure/core": "workspace:*"
+  },
+  "license": "BSD-2-Clause"
+}

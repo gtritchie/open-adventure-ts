@@ -3,19 +3,20 @@
   "version": "1.0.0",
   "description": "TypeScript port of Open Adventure (Colossal Cave Adventure 2.5)",
   "type": "module",
+  "private": true,
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "generate": "tsx scripts/make-dungeon.ts",
-    "generate:check": "tsx scripts/make-dungeon.ts --check",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "generate": "pnpm --filter @open-adventure/core generate",
+    "generate:check": "pnpm --filter @open-adventure/core generate:check",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:regress": "tsx scripts/regress.ts",
-    "generate:graph": "tsx scripts/make-graph.ts",
-    "play": "tsx src/main.ts"
+    "generate:graph": "pnpm --filter @open-adventure/core exec tsx scripts/make-graph.ts",
+    "play": "pnpm --filter @open-adventure/cli play"
   },
   "devDependencies": {
     "@types/js-yaml": "4.0.9",
