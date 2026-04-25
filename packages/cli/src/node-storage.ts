@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 import { readFile, writeFile, unlink } from "node:fs/promises";
-import type { SaveStorage } from "../packages/core/src/types.js";
+import type { SaveStorage } from "@open-adventure/core";
 
 export class NodeFileStorage implements SaveStorage {
   async read(name: string): Promise<string | null> {

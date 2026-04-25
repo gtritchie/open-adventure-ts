@@ -7,11 +7,9 @@
 import { writeFileSync, readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
-import type { Settings } from "../packages/core/src/types.js";
-import { TerminateError } from "../packages/core/src/types.js";
-import { ConsoleIO, ScriptIO } from "./io.js";
-import { createSettings } from "../packages/core/src/init.js";
-import { runGame } from "../packages/core/src/run-game.js";
+import type { Settings } from "@open-adventure/core";
+import { TerminateError, ScriptIO, createSettings, runGame } from "@open-adventure/core";
+import { ConsoleIO } from "./console-io.js";
 import { NodeFileStorage } from "./node-storage.js";
 
 async function main(): Promise<void> {
