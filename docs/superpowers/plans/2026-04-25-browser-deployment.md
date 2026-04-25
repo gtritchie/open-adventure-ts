@@ -86,6 +86,7 @@ This is the foundation for portability. We swap `process.exit(0)` for `throw new
 - Modify: `src/init.ts` (line 151 + signature change)
 - Modify: `src/rng.ts` (line 16)
 - Modify: `src/main.ts` (call site for `initialise`)
+- Modify: `src/cheat.ts` (call site for `initialise`)
 
 - [ ] **Step 1: Extend Settings to carry the new debug callback**
 
@@ -154,6 +155,18 @@ export function initialise(
 
 In `src/main.ts`, the call site is currently `const seedval = initialise(gameState, settings);`. Update it to `const seedval = initialise(gameState, settings, io);` — but `io` is constructed *after* `initialise` in current `main.ts`. Move IO construction up so it precedes the `initialise` call.
 
+In `src/cheat.ts` (line 44), the call site is `initialise(game, settings);`. The cheat utility never produces user-facing output from `initialise()` (it doesn't run in `oldstyle` mode), so a discard IO is appropriate. Use `ScriptIO` from `io.ts` with empty input:
+
+```typescript
+import { ScriptIO } from "./io.js";
+
+// ...
+const io = new ScriptIO([], settings);
+initialise(game, settings, io);
+```
+
+The `ScriptIO` instance buffers the (unused) "Initialising..." string into its output buffer if it ever fires. cheat.ts never reads that buffer, so it's harmless.
+
 - [ ] **Step 5: Route the rng debug log through debugCallback**
 
 In `src/rng.ts`, replace line 16:
@@ -192,7 +205,7 @@ Expected: all 107 tests pass with `# ok`. Any tampering or save-related test tha
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/types.ts src/input.ts src/save.ts src/init.ts src/rng.ts src/main.ts
+git add src/types.ts src/input.ts src/save.ts src/init.ts src/rng.ts src/main.ts src/cheat.ts
 git commit -m "Replace process.exit and direct stdio with portable abstractions"
 ```
 
@@ -727,8 +740,8 @@ The behavior of `score()` and `terminate()` is unchanged. `computeScore` is the 
 Add to `src/save-pure.ts`:
 
 ```typescript
-import { CARRIED, Termination, SAVE_VERSION, type SaveSummary } from "./types.js";
-import { Location, locations, objects, NOBJECTS } from "./dungeon.js";
+import { CARRIED, Termination, SAVE_VERSION, OUTSIDE, type SaveSummary } from "./types.js";
+import { locations, objects, conditions, NOBJECTS } from "./dungeon.js";
 import { computeScore } from "./score.js";
 
 export function summarizeSave(jsonOrState: string | GameState): SaveSummary | { error: string } {
@@ -767,11 +780,14 @@ export function summarizeSave(jsonOrState: string | GameState): SaveSummary | { 
     }
   }
 
+  // Phase derived from condition bits, not enum ordering. Enum order isn't a
+  // reliable indoor/outdoor signal — above-ground locations like LOC_VALLEY
+  // and LOC_FOREST* sit after LOC_BUILDING in the generated enum.
   let phase: SaveSummary["phase"];
   if (state.closed) phase = "closed";
   else if (state.closng) phase = "closing";
-  else if (state.loc >= Location.LOC_BUILDING) phase = "in-cave";
-  else phase = "pre-cave";
+  else if (OUTSIDE(conditions, state.loc)) phase = "pre-cave";
+  else phase = "in-cave";
 
   const { points, max } = computeScore(state, Termination.endgame);
 
@@ -792,7 +808,8 @@ export function summarizeSave(jsonOrState: string | GameState): SaveSummary | { 
 
 Verification notes:
 - `LocationData` in `types.ts` defines `description.small` and `description.big` (both nullable strings). Code above uses these names directly.
-- `Location.LOC_BUILDING` is the building's location enum value — verify against `dungeon.ts` exports. The `state.loc >= LOC_BUILDING` heuristic for "in-cave" assumes location enum ordering puts cave locations after the building; if that's not the case in this codebase, replace with a more explicit check (e.g., a list of pre-cave locations: `LOC_START`, `LOC_HILL`, `LOC_OUTSIDE`, `LOC_BUILDING`, `LOC_VALLEY`, `LOC_FOREST*`).
+- `OUTSIDE(conditions, loc)` (defined in `types.ts`) checks `COND_ABOVE` and `COND_FOREST` bits — true for any above-ground location, so it correctly classifies `LOC_VALLEY`, `LOC_FOREST*`, the building's exterior, etc. as `pre-cave`.
+- `conditions` is the runtime conditions array exported from `dungeon.ts` (re-exported from `dungeon.generated.ts`). It's mutable in some game flows; reading it for a snapshot summary is safe because `summarizeSave` is invoked outside the game loop.
 
 - [ ] **Step 5: Run tests to confirm they pass**
 
@@ -821,7 +838,7 @@ git commit -m "Add summarizeSave for save-list UIs"
 
 ### Task 5: Implement NodeFileStorage and replace inline storage in main.ts
 
-Replace the temporary inline storage (added in Task 2) with a properly-named class. Lives in `src/` for now; moves to `cli/` in Task 9.
+Replace the temporary inline storage (added in Task 2) with a properly-named class. Lives in `src/` for now; moves to `cli/` in Task 10.
 
 **Files:**
 - Create: `src/node-storage.ts`
@@ -966,15 +983,15 @@ Pull the orchestration block out of `main.ts` (welcome-or-restore + `gameLoop` +
  * SPDX-FileCopyrightText: (C) 1977, 2005 by Will Crowther and Don Woods
  * SPDX-License-Identifier: BSD-2-Clause
  */
-import type { GameState, GameIO, Settings, SaveStorage } from "./types.js";
+import type { GameState, GameIO, Settings, SaveStorage, SaveFile } from "./types.js";
 import { TerminateError, Termination, NOVICELIMIT } from "./types.js";
 import { Msg, arbitraryMessages } from "./dungeon.js";
 import { createGameState, createSettings, initialise } from "./init.js";
 import { gameLoop } from "./game-loop.js";
 import { yesOrNo } from "./input.js";
-import { deserializeGame } from "./save-pure.js";
+import { restore } from "./save.js";
 import { terminate } from "./score.js";
-import { rspeak, speak } from "./format.js";
+import { rspeak } from "./format.js";
 import { createDeps } from "./deps.js";  // see Step 2 below
 
 export interface RunGameOptions {
@@ -994,12 +1011,29 @@ export async function runGame(opts: RunGameOptions): Promise<number> {
   const seedval = initialise(state, settings, opts.io);
 
   if (opts.initialSave !== undefined) {
-    const result = deserializeGame(opts.initialSave);
-    if (!result.ok) {
-      opts.io.print(`Cannot resume save: ${result.message}\n`);
-      return 1;
+    // Mirror today's restoreFromFile + restore() behavior so the CLI -r flag
+    // and any browser host providing initialSave produce identical messages
+    // for bad-magic / version-skew / tampering. No welcome flow runs when
+    // initialSave is provided, regardless of restore success/failure.
+    let parsed: SaveFile | null = null;
+    try {
+      parsed = JSON.parse(opts.initialSave) as SaveFile;
+    } catch {
+      // Today's restoreFromFile() lets JSON.parse throw, which crashes main.ts.
+      // Browser-friendly behavior: emit the same BAD_SAVE message the in-game
+      // RESUME flow uses for bad JSON, then continue from initial state.
+      rspeak(state, opts.io, Msg.BAD_SAVE);
     }
-    Object.assign(state, result.state);
+    if (parsed !== null) {
+      // restore() emits rspeak messages for bad-magic / version-skew and
+      // throws TerminateError on tampering — caught by the outer try/catch.
+      try {
+        restore(parsed, state, opts.io);
+      } catch (err: unknown) {
+        if (err instanceof TerminateError) return err.code;
+        throw err;
+      }
+    }
   } else {
     state.novice = await yesOrNo(
       state, opts.io, settings,
@@ -1372,7 +1406,7 @@ git commit -m "Add pnpm workspace skeleton with empty core/cli packages"
 
 ### Task 8: Move source files into packages/core/src/
 
-Use `git mv` for everything that belongs to core. CLI files move in Task 9. `io.ts` stays in `src/` for now (it'll be split in Task 9).
+Use `git mv` for everything that belongs to core. CLI files move in Task 10. `io.ts` stays in `src/` for now (Task 9 promotes ScriptIO into core; Task 10 moves ConsoleIO into cli and deletes the original).
 
 **Files moved:**
 - All of `src/*.ts` EXCEPT `main.ts`, `cheat.ts`, `io.ts`
@@ -1432,7 +1466,7 @@ const OUT_PATH = resolve(import.meta.dirname!, "..", "src", "dungeon.generated.t
 pnpm --filter @open-adventure/core build
 ```
 
-Expected: TypeScript compiles cleanly. (Cli still references the old `src/` paths — its build will fail until Task 9. Don't run root `pnpm build` yet.)
+Expected: TypeScript compiles cleanly. (Cli still references the old `src/` paths — its build will fail until Task 10. Don't run root `pnpm build` yet.)
 
 - [ ] **Step 5: Verify core tests pass**
 
@@ -1451,21 +1485,17 @@ git commit -m "Move core source files into packages/core/"
 
 ---
 
-### Task 9: Split io.ts and move CLI files into packages/cli/src/
+### Task 9: Create core public API barrel (index.ts)
 
-`io.ts` contains both `ConsoleIO` (Node-only) and `ScriptIO` (portable). Split them, move ConsoleIO into cli, promote ScriptIO into core as `test-io.ts`.
+Add the barrel BEFORE the CLI move (Task 10) — Task 10's CLI files import from `@open-adventure/core`, so the barrel must already exist and resolve. The barrel also promotes `ScriptIO` into core (via a new `test-io.ts`) so it's available as a public export.
+
+`Settings` is exported under both its original name (so internal-style consumers like the CLI keep working) and `GameSettings` (the public-facing alias the spec describes for browser hosts).
 
 **Files:**
-- Create: `packages/core/src/test-io.ts` (extracted ScriptIO)
-- Create: `packages/cli/src/console-io.ts` (extracted ConsoleIO)
-- Move: `src/main.ts` → `packages/cli/src/main.ts`
-- Move: `src/cheat.ts` → `packages/cli/src/cheat.ts`
-- Move: `src/node-storage.ts` → `packages/cli/src/node-storage.ts`
-- Move: `src/node-storage.test.ts` → `packages/cli/src/node-storage.test.ts`
-- Delete: `src/io.ts` (replaced by the two split files)
-- Delete: `src/` (empty after this task)
+- Create: `packages/core/src/test-io.ts` (ScriptIO promoted from `src/io.ts`)
+- Create: `packages/core/src/index.ts`
 
-- [ ] **Step 1: Extract ScriptIO into core/src/test-io.ts**
+- [ ] **Step 1: Promote ScriptIO into core/src/test-io.ts**
 
 Create `packages/core/src/test-io.ts`:
 
@@ -1509,13 +1539,89 @@ export class ScriptIO implements GameIO {
 }
 ```
 
-- [ ] **Step 2: Extract ConsoleIO into cli/src/console-io.ts**
+(The ConsoleIO half of `src/io.ts` stays put for now — Task 10 moves it into `packages/cli/src/console-io.ts`. `src/io.ts` will still have ConsoleIO, plus an unused ScriptIO definition that gets deleted in Task 10.)
+
+- [ ] **Step 2: Write packages/core/src/index.ts**
+
+```typescript
+/*
+ * Public API for @open-adventure/core.
+ *
+ * SPDX-FileCopyrightText: (C) 1977, 2005 by Will Crowther and Don Woods
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
+// Session entry point
+export { runGame, type RunGameOptions } from "./run-game.js";
+
+// State + settings factories
+export { createGameState, createSettings } from "./init.js";
+
+// Pure save helpers
+export { serializeGame, deserializeGame, summarizeSave } from "./save-pure.js";
+export { savefile } from "./save.js";
+
+// In-memory IO for tests/hosts that want it
+export { ScriptIO } from "./test-io.js";
+
+// Public types
+export type {
+  GameIO,
+  SaveStorage,
+  GameState,
+  SaveFile,
+  RestoreResult,
+  SaveSummary,
+} from "./types.js";
+
+// Settings is exported under both names: the original (used by the CLI and
+// other internal-style consumers) and GameSettings (the public-facing alias
+// the spec describes for browser hosts).
+export type { Settings, Settings as GameSettings } from "./types.js";
+
+// TerminateError is exposed so hosts can recognise it if it leaks via custom IO
+export { TerminateError } from "./types.js";
+```
+
+- [ ] **Step 3: Build core**
+
+```bash
+pnpm --filter @open-adventure/core build
+```
+
+Expected: clean build, `packages/core/dist/index.js` and `packages/core/dist/index.d.ts` produced.
+
+(CLI is still at `src/` — its build remains broken from Task 8 until Task 10 moves the files. That's by design.)
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add packages/core/src/test-io.ts packages/core/src/index.ts
+git commit -m "Add core public API barrel and promote ScriptIO into core"
+```
+
+---
+
+### Task 10: Split io.ts and move CLI files into packages/cli/src/
+
+With the core barrel now in place (Task 9), the remaining CLI files can move and switch their imports to `@open-adventure/core`.
+
+**Files:**
+- Create: `packages/cli/src/console-io.ts` (extracted ConsoleIO)
+- Move: `src/main.ts` → `packages/cli/src/main.ts`
+- Move: `src/cheat.ts` → `packages/cli/src/cheat.ts`
+- Move: `src/node-storage.ts` → `packages/cli/src/node-storage.ts`
+- Move: `src/node-storage.test.ts` → `packages/cli/src/node-storage.test.ts`
+- Delete: `src/io.ts` (ConsoleIO moved out; ScriptIO already promoted in Task 9)
+- Delete: `src/` (empty after this task)
+
+- [ ] **Step 1: Extract ConsoleIO into cli/src/console-io.ts**
 
 ```bash
 mkdir -p packages/cli/src
 ```
 
-Create `packages/cli/src/console-io.ts` with the ConsoleIO body from current `src/io.ts`:
+Create `packages/cli/src/console-io.ts` with the ConsoleIO body from `src/io.ts`:
 
 ```typescript
 /*
@@ -1573,7 +1679,7 @@ export class ConsoleIO implements GameIO {
 }
 ```
 
-- [ ] **Step 3: Move main.ts, cheat.ts, node-storage.ts to cli**
+- [ ] **Step 2: Move main.ts, cheat.ts, node-storage.ts to cli**
 
 ```bash
 git mv src/main.ts packages/cli/src/main.ts
@@ -1585,22 +1691,30 @@ git rm src/io.ts
 
 (After this, `src/` is empty; `git status` should show it gone or empty. If empty dir lingers, `rmdir src`.)
 
-- [ ] **Step 4: Update imports in cli files to use @open-adventure/core**
+- [ ] **Step 3: Update imports in cli files to use @open-adventure/core**
 
-In `packages/cli/src/main.ts`, replace internal imports with package imports:
+In `packages/cli/src/main.ts`, replace internal imports with package imports. The exact lines depend on what main.ts uses after Task 6's slimming — work through every `from "./X.js"` and replace `./X.js` with `@open-adventure/core` if the target moved into core. Typical result:
 
 ```typescript
-// was: import type { ... } from "./types.js";
-// now:
 import type { GameIO, Settings, GameState } from "@open-adventure/core";
 import { TerminateError, runGame, ScriptIO } from "@open-adventure/core";
 import { ConsoleIO } from "./console-io.js";
 import { NodeFileStorage } from "./node-storage.js";
 ```
 
-(The exact set of imports depends on what main.ts uses after Task 6's slimming. Replace each `./X.js` with `@open-adventure/core` if the target was a core file.)
+In `packages/cli/src/cheat.ts`, replace internal imports the same way. The current cheat.ts imports `createGameState`, `createSettings`, `initialise` from `./init.js` and `savefile` from `./save.js` (and after Task 1, `ScriptIO` from `./io.js`). All of those move to `@open-adventure/core`:
 
-In `packages/cli/src/cheat.ts`, similarly replace internal imports with `@open-adventure/core` ones. (cheat.ts imports a lot — game state, save helpers, etc. — all of which are now in core.)
+```typescript
+import {
+  createGameState,
+  createSettings,
+  initialise,
+  ScriptIO,
+} from "@open-adventure/core";
+import { savefile } from "@open-adventure/core";
+```
+
+(If `savefile` isn't on the public barrel, either add it to the barrel or have cheat reach into the deep path. Recommended: add to barrel for symmetry with `serializeGame` and friends.)
 
 In `packages/cli/src/node-storage.ts`, change:
 
@@ -1609,7 +1723,7 @@ In `packages/cli/src/node-storage.ts`, change:
 import type { SaveStorage } from "@open-adventure/core";
 ```
 
-- [ ] **Step 5: Update vitest config to find tests in packages**
+- [ ] **Step 4: Update vitest config to find tests in packages**
 
 In root `vitest.config.ts`:
 
@@ -1623,15 +1737,15 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 6: Build core (cli depends on its dist)**
+- [ ] **Step 5: Build core (cli depends on its dist)**
 
 ```bash
 pnpm --filter @open-adventure/core build
 ```
 
-Expected: clean build into `packages/core/dist/`.
+Expected: clean build (idempotent — already built in Task 9).
 
-- [ ] **Step 7: Build cli**
+- [ ] **Step 6: Build cli**
 
 ```bash
 pnpm --filter @open-adventure/cli build
@@ -1639,7 +1753,7 @@ pnpm --filter @open-adventure/cli build
 
 Expected: clean build. Imports of `@open-adventure/core` resolve to the just-built `dist/`.
 
-- [ ] **Step 8: Run unit tests**
+- [ ] **Step 7: Run unit tests**
 
 ```bash
 pnpm test
@@ -1647,90 +1761,11 @@ pnpm test
 
 Expected: `save-pure.test.ts`, `save-summary.test.ts`, `node-storage.test.ts` all pass.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add packages/ src/ vitest.config.ts -A
 git commit -m "Split io.ts; move CLI files into packages/cli/"
-```
-
----
-
-### Task 10: Create core public API barrel (index.ts)
-
-Expose only the names the spec defines. `Settings` becomes `GameSettings` at the public boundary (internal name stays `Settings` — re-exported via alias).
-
-**Files:**
-- Create: `packages/core/src/index.ts`
-
-- [ ] **Step 1: Write index.ts**
-
-```typescript
-/*
- * Public API for @open-adventure/core.
- *
- * SPDX-FileCopyrightText: (C) 1977, 2005 by Will Crowther and Don Woods
- * SPDX-License-Identifier: BSD-2-Clause
- */
-
-// Session entry point
-export { runGame, type RunGameOptions } from "./run-game.js";
-
-// State + settings factories
-export { createGameState, createSettings } from "./init.js";
-
-// Pure save helpers
-export { serializeGame, deserializeGame, summarizeSave } from "./save-pure.js";
-
-// In-memory IO for tests/hosts that want it
-export { ScriptIO } from "./test-io.js";
-
-// Public types
-export type {
-  GameIO,
-  SaveStorage,
-  GameState,
-  SaveFile,
-  RestoreResult,
-  SaveSummary,
-} from "./types.js";
-
-// Public-facing alias for the internal Settings shape.
-export type { Settings as GameSettings } from "./types.js";
-
-// TerminateError is exposed so hosts can recognise it if it leaks via custom IO
-export { TerminateError } from "./types.js";
-```
-
-- [ ] **Step 2: Verify the barrel compiles**
-
-```bash
-pnpm --filter @open-adventure/core build
-```
-
-Expected: clean build, `dist/index.js` and `dist/index.d.ts` produced.
-
-- [ ] **Step 3: Verify cli still consumes core via the barrel**
-
-```bash
-pnpm --filter @open-adventure/cli build
-```
-
-Expected: cli imports of `@open-adventure/core` resolve.
-
-- [ ] **Step 4: Run regression tests (now via the built CLI)**
-
-```bash
-pnpm test:regress
-```
-
-Wait — this still references `src/main.ts`. Update happens in Task 11. Skip this step here; just confirm core+cli build cleanly.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add packages/core/src/index.ts
-git commit -m "Add core public API barrel (@open-adventure/core)"
 ```
 
 ---
