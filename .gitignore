@@ -6,3 +6,4 @@ tests/scratch.tmp
 
 # Claude Code
 .claude/settings.local.json
+.claude/worktrees/
