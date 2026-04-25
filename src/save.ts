@@ -10,6 +10,7 @@
 import { readFileSync } from "node:fs";
 
 import type { GameState, Settings, GameIO, SaveFile } from "./types.js";
+import { deserializeGame } from "./save-pure.js";
 import {
   PhaseCode,
   TerminateError,
@@ -154,23 +155,30 @@ export function restore(
   game: GameState,
   io: GameIO,
 ): PhaseCode {
-  if (save.magic !== ADVENT_MAGIC || save.canary !== ENDIAN_MAGIC) {
-    rspeak(game, io, Msg.BAD_SAVE);
-  } else if (save.version !== SAVE_VERSION) {
-    rspeak(
-      game,
-      io,
-      Msg.VERSION_SKEW,
-      Math.trunc(save.version / 10),
-      save.version % 10,
-      Math.trunc(SAVE_VERSION / 10),
-      SAVE_VERSION % 10,
-    );
-  } else if (!isValid(save.game)) {
-    rspeak(game, io, Msg.SAVE_TAMPERING);
-    throw new TerminateError(0);
-  } else {
-    Object.assign(game, save.game);
+  const result = deserializeGame(JSON.stringify(save));
+  if (result.ok) {
+    Object.assign(game, result.state);
+    return PhaseCode.GO_TOP;
+  }
+  switch (result.reason) {
+    case "bad-magic":
+    case "bad-json":
+      rspeak(game, io, Msg.BAD_SAVE);
+      break;
+    case "version-skew":
+      rspeak(
+        game,
+        io,
+        Msg.VERSION_SKEW,
+        Math.trunc(result.saveVersion! / 10),
+        result.saveVersion! % 10,
+        Math.trunc(result.expectedVersion! / 10),
+        result.expectedVersion! % 10,
+      );
+      break;
+    case "tampering":
+      rspeak(game, io, Msg.SAVE_TAMPERING);
+      throw new TerminateError(0);
   }
   return PhaseCode.GO_TOP;
 }

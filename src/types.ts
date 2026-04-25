@@ -352,6 +352,16 @@ export interface SaveFile {
   game: GameState;
 }
 
+export type RestoreResult =
+  | { ok: true; state: GameState }
+  | {
+      ok: false;
+      reason: "bad-json" | "bad-magic" | "version-skew" | "tampering";
+      saveVersion?: number;
+      expectedVersion?: number;
+      message: string;
+    };
+
 // ── GameIO interface ──
 
 export interface GameIO {
