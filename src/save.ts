@@ -31,7 +31,7 @@ import {
   arbitraryMessages,
   MAX_STATE,
 } from "./dungeon.js";
-import { speak, rspeak } from "./format.js";
+import { rspeak } from "./format.js";
 import { yesOrNo } from "./input.js";
 
 /**

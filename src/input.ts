@@ -19,7 +19,7 @@ import { Msg } from "./dungeon.js";
  * Handles echo (when piped) and logging AFTER comment filtering.
  */
 export async function getInput(
-  game: GameState,
+  _game: GameState,
   io: GameIO,
   settings: Settings,
 ): Promise<string | null> {
