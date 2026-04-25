@@ -84,5 +84,4 @@ export async function runGame(opts: RunGameOptions): Promise<number> {
     if (err instanceof TerminateError) return err.code;
     throw err;
   }
-  return 0;
 }
