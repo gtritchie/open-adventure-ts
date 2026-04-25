@@ -8,7 +8,6 @@
  */
 
 import { writeFileSync, readFileSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 
 import type { GameState, Settings, GameIO, Command } from "./types.js";
@@ -50,6 +49,7 @@ import { randrange as rngRandrange } from "./rng.js";
 import { restoreFromFile } from "./save.js";
 import { terminate as scoreTerminate } from "./score.js";
 import { ConsoleIO, ScriptIO } from "./io.js";
+import { NodeFileStorage } from "./node-storage.js";
 
 /**
  * Wire up GameLoopDeps adapters.
@@ -296,15 +296,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Temporary inline storage adapter — replaced by NodeFileStorage in Task 5
-  settings.storage = {
-    async read(name) {
-      try { return await readFile(name, "utf-8"); } catch { return null; }
-    },
-    async write(name, data) {
-      await writeFile(name, data);
-    },
-  };
+  settings.storage = new NodeFileStorage();
 
   // Create IO based on whether we have script lines
   let io: GameIO;
