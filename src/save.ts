@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 import type { GameState, Settings, GameIO, SaveFile } from "./types.js";
 import {
@@ -71,18 +71,17 @@ export async function suspend(
   }
   game.saved = game.saved + 5;
 
+  if (settings.storage === null) {
+    throw new Error("suspend(): settings.storage not configured");
+  }
+
   for (;;) {
     const name = await io.readline("\nFile name: ");
-    if (name === null) {
-      return PhaseCode.GO_TOP;
-    }
+    if (name === null) return PhaseCode.GO_TOP;
     const trimmed = name.trim();
-    if (trimmed.length === 0) {
-      return PhaseCode.GO_TOP;
-    }
+    if (trimmed.length === 0) return PhaseCode.GO_TOP;
     try {
-      const save = savefile(game);
-      writeFileSync(trimmed, JSON.stringify(save));
+      await settings.storage.write(trimmed, JSON.stringify(savefile(game)));
       break;
     } catch {
       io.print(`Can't open file ${trimmed}, try again.\n`);
@@ -121,19 +120,17 @@ export async function resume(
     }
   }
 
+  if (settings.storage === null) {
+    throw new Error("resume(): settings.storage not configured");
+  }
+
   for (;;) {
     const name = await io.readline("\nFile name: ");
-    if (name === null) {
-      return PhaseCode.GO_TOP;
-    }
+    if (name === null) return PhaseCode.GO_TOP;
     const trimmed = name.trim();
-    if (trimmed.length === 0) {
-      return PhaseCode.GO_TOP;
-    }
-    let data: string;
-    try {
-      data = readFileSync(trimmed, "utf-8");
-    } catch {
+    if (trimmed.length === 0) return PhaseCode.GO_TOP;
+    const data = await settings.storage.read(trimmed);
+    if (data === null) {
       io.print(`Can't open file ${trimmed}, try again.\n`);
       continue;
     }
@@ -141,7 +138,6 @@ export async function resume(
     try {
       save = JSON.parse(data) as SaveFile;
     } catch {
-      // Not valid JSON — treat as bad magic
       rspeak(game, io, Msg.BAD_SAVE);
       return PhaseCode.GO_TOP;
     }

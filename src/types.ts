@@ -320,6 +320,13 @@ export interface GameState {
   link: number[];
 }
 
+export interface SaveStorage {
+  read(name: string): Promise<string | null>;
+  write(name: string, data: string): Promise<void>;
+  list?(): Promise<string[]>;
+  delete?(name: string): Promise<void>;
+}
+
 export interface Settings {
   logfp: ((line: string) => void) | null;
   oldstyle: boolean;
@@ -328,6 +335,7 @@ export interface Settings {
   scriptIndex: number;
   debug: number;
   debugCallback: ((line: string) => void) | null;
+  storage: SaveStorage | null;
 }
 
 export interface SaveFile {

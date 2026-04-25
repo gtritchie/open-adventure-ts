@@ -138,6 +138,7 @@ export function createSettings(): Settings {
     scriptIndex: 0,
     debug: 0,
     debugCallback: null,
+    storage: null,
   };
 }
 
