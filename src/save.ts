@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import type { GameState, Settings, GameIO, SaveFile } from "./types.js";
 import {
   PhaseCode,
+  TerminateError,
   SAVE_VERSION,
   ADVENT_MAGIC,
   ENDIAN_MAGIC,
@@ -89,7 +90,7 @@ export async function suspend(
   }
 
   rspeak(game, io, Msg.RESUME_HELP);
-  process.exit(0);
+  throw new TerminateError(0);
 }
 
 /**
@@ -171,7 +172,7 @@ export function restore(
     );
   } else if (!isValid(save.game)) {
     rspeak(game, io, Msg.SAVE_TAMPERING);
-    process.exit(0);
+    throw new TerminateError(0);
   } else {
     Object.assign(game, save.game);
   }

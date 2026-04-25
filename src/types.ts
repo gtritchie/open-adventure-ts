@@ -327,6 +327,7 @@ export interface Settings {
   scriptLines: string[] | null;
   scriptIndex: number;
   debug: number;
+  debugCallback: ((line: string) => void) | null;
 }
 
 export interface SaveFile {

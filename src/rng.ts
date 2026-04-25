@@ -12,8 +12,7 @@ function getNextLcgValue(game: GameState, settings: Settings): number {
   const oldX = game.lcgX;
   game.lcgX = (LCG_A * game.lcgX + LCG_C) % LCG_M;
   if (settings.debug) {
-    // Match C: printf("# random %d\n", old_x);
-    process.stderr.write(`# random ${oldX}\n`);
+    settings.debugCallback?.(`# random ${oldX}\n`);
   }
   return oldX;
 }

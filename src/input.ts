@@ -8,7 +8,7 @@
  */
 
 import type { GameState, GameIO, Settings } from "./types.js";
-import { PROMPT } from "./types.js";
+import { PROMPT, TerminateError } from "./types.js";
 import { speak, rspeak } from "./format.js";
 import { Msg } from "./dungeon.js";
 
@@ -70,7 +70,7 @@ export async function silentYesOrNo(
     const reply = await getInput(game, io, settings);
     if (reply === null) {
       // Should be unreachable in normal operation
-      process.exit(0);
+      throw new TerminateError(0);
     }
     if (reply.length === 0) {
       rspeak(game, io, Msg.PLEASE_ANSWER);
@@ -109,7 +109,7 @@ export async function yesOrNo(
     const reply = await getInput(game, io, settings);
     if (reply === null) {
       // Should be unreachable in normal operation
-      process.exit(0);
+      throw new TerminateError(0);
     }
 
     if (reply.length === 0) {

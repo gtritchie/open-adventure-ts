@@ -239,6 +239,10 @@ async function main(): Promise<void> {
     settings.debug += 1;
   }
 
+  settings.debugCallback = (msg: string): void => {
+    process.stderr.write(msg);
+  };
+
   // -o oldstyle mode
   if (vals.o) {
     settings.oldstyle = true;
@@ -292,9 +296,6 @@ async function main(): Promise<void> {
     }
   }
 
-  // Initialize game
-  const seedval = initialise(gameState, settings);
-
   // Create IO based on whether we have script lines
   let io: GameIO;
   if (settings.scriptLines !== null) {
@@ -302,6 +303,9 @@ async function main(): Promise<void> {
   } else {
     io = new ConsoleIO(settings);
   }
+
+  // Initialize game
+  const seedval = initialise(gameState, settings, io);
 
   // Welcome and instructions, or restore
   if (resumeFile === undefined) {
