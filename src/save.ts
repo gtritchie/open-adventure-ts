@@ -7,8 +7,6 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
-import { readFileSync } from "node:fs";
-
 import type { GameState, Settings, GameIO, SaveFile } from "./types.js";
 import { deserializeGame, savefile, isValid } from "./save-pure.js";
 import { PhaseCode, TerminateError } from "./types.js";
@@ -155,17 +153,3 @@ export function restore(
   }
   return PhaseCode.GO_TOP;
 }
-
-/**
- * Restore game from a file path (for -r command-line option).
- */
-export function restoreFromFile(
-  filepath: string,
-  game: GameState,
-  io: GameIO,
-): PhaseCode {
-  const data = readFileSync(filepath, "utf-8");
-  const save = JSON.parse(data) as SaveFile;
-  return restore(save, game, io);
-}
-
