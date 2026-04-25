@@ -40,6 +40,9 @@ npx tsx src/main.ts < script.txt
 # Type-check
 pnpm typecheck              # or: npm run typecheck
 
+# Build (compile TypeScript to dist/)
+pnpm build                  # or: npm run build
+
 # Run unit tests
 pnpm test                   # or: npm test
 
@@ -54,6 +57,21 @@ pnpm generate               # or: npm run generate
 
 # Verify generated dungeon data is up to date
 pnpm generate:check         # or: npm run generate:check
+
+# Generate Graphviz DOT of the dungeon map (stdout)
+pnpm generate:graph         # or: npm run generate:graph
+```
+
+## Cross-checking against the C reference
+
+These scripts compare TypeScript output directly against the original C `advent` binary built in `../open-adventure`. Run them after any gameplay change.
+
+```bash
+# Diff every regression .log against both implementations
+npx tsx scripts/cross-compare.ts
+
+# Random command sequences, deterministic seeds for reproducibility
+npx tsx scripts/fuzz-compare.ts
 ```
 
 ## Project Structure
@@ -80,10 +98,14 @@ src/
   rng.ts               Deterministic LCG PRNG
 scripts/
   make-dungeon.ts      Code generator (reads adventure.yaml)
+  make-graph.ts        Graphviz DOT generator for the dungeon map
   regress.ts           Regression test runner
+  cross-compare.ts     Diff TS output against the C reference binary
+  fuzz-compare.ts      Random-input comparison against the C reference binary
 tests/
   *.log                Test input scripts
   *.chk                Expected output (compared byte-for-byte)
+maps/                  Pre-rendered SVG dungeon maps
 ```
 
 ## License
