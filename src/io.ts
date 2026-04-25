@@ -6,7 +6,7 @@
  */
 
 import { createInterface, type Interface } from "node:readline/promises";
-import type { GameIO, Settings } from "./types.js";
+import type { GameIO, Settings } from "../packages/core/src/types.js";
 
 /**
  * ConsoleIO - Production I/O using node:readline/promises.

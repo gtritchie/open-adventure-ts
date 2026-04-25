@@ -10,12 +10,12 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "generate": "tsx scripts/make-dungeon.ts",
-    "generate:check": "tsx scripts/make-dungeon.ts --check",
+    "generate": "pnpm --filter @open-adventure/core generate",
+    "generate:check": "pnpm --filter @open-adventure/core generate:check",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:regress": "tsx scripts/regress.ts",
-    "generate:graph": "tsx scripts/make-graph.ts",
+    "generate:graph": "pnpm --filter @open-adventure/core exec tsx scripts/make-graph.ts",
     "play": "tsx src/main.ts"
   },
   "devDependencies": {

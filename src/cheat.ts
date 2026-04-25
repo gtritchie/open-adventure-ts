@@ -11,9 +11,9 @@
 
 import { writeFileSync } from "node:fs";
 
-import { createGameState, createSettings, initialise } from "./init.js";
-import { savefile } from "./save.js";
-import type { GameIO } from "./types.js";
+import { createGameState, createSettings, initialise } from "../packages/core/src/init.js";
+import { savefile } from "../packages/core/src/save.js";
+import type { GameIO } from "../packages/core/src/types.js";
 
 const usage = `Usage: cheat [-d numdie] [-l lifetime] [-s numsaves] [-t turns] [-v version] -o savefilename
         -d number of deaths. Integer.
