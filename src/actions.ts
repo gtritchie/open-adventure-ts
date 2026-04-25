@@ -33,7 +33,6 @@ import {
   OBJECT_IS_STASHED,
   OBJECT_STATE_EQUALS,
   GSTONE,
-  TerminateError,
   COND_LIT,
   COND_OILY,
   COND_FLUID,
@@ -100,7 +99,7 @@ import {
 function rspeakAdapter(io: GameIO, game: GameState, msg: number, ...args: unknown[]): void {
   rspeak(game, io, msg, ...(args as (string | number)[]));
 }
-function speakAdapter(io: GameIO, msg: string | null, ...args: unknown[]): void {
+function speakAdapter(io: GameIO, msg: string | null, ..._args: unknown[]): void {
   // speak in format.ts requires a game parameter, but the adapter caller doesn't provide one.
   // We use the game from the closure — but speakAdapter is called only from terminate/score.
   // However, speak from format.ts actually uses game for floor/ground substitution.
@@ -1356,7 +1355,7 @@ function pour(
   }
 }
 
-function quit(
+async function quit(
   game: GameState,
   io: GameIO,
   settings: Settings,
