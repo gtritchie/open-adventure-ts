@@ -26,7 +26,7 @@ export class ConsoleIO implements GameIO {
   private isTTY: boolean;
   private lineIterator: AsyncIterableIterator<string> | null = null;
 
-  constructor(settings: Settings) {
+  constructor(_settings: Settings) {
     this.isTTY = process.stdin.isTTY === true;
     this.echoInput = !this.isTTY;
     this.rl = createInterface({
