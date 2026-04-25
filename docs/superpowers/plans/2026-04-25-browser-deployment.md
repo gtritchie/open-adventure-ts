@@ -1019,9 +1019,11 @@ export async function runGame(opts: RunGameOptions): Promise<number> {
     try {
       parsed = JSON.parse(opts.initialSave) as SaveFile;
     } catch {
-      // Today's restoreFromFile() lets JSON.parse throw, which crashes main.ts.
-      // Browser-friendly behavior: emit the same BAD_SAVE message the in-game
-      // RESUME flow uses for bad JSON, then continue from initial state.
+      // Browser-friendly: emit the same BAD_SAVE message the in-game RESUME
+      // flow uses for bad JSON, then continue from initial state. The CLI's
+      // -r flag pre-validates JSON in main.ts to preserve today's strict
+      // crash-on-bad-JSON semantics, so this branch is browser-only in
+      // practice.
       rspeak(state, opts.io, Msg.BAD_SAVE);
     }
     if (parsed !== null) {
@@ -1149,6 +1151,16 @@ async function main(): Promise<void> {
       initialSave = readFileSync(vals.r, "utf-8");
     } catch {
       process.stderr.write(`advent: can't open save file ${vals.r} for read\n`);
+      process.exit(1);
+    }
+    // Preserve today's CLI -r strictness: today's restoreFromFile() lets
+    // JSON.parse throw, which exits via main().catch with stderr + exit 1.
+    // runGame's initialSave path is intentionally graceful for browser hosts
+    // (rspeak BAD_SAVE + continue); CLI keeps the strict crash semantics.
+    try {
+      JSON.parse(initialSave);
+    } catch (err: unknown) {
+      process.stderr.write(String(err) + "\n");
       process.exit(1);
     }
   }
@@ -1555,7 +1567,7 @@ export class ScriptIO implements GameIO {
 export { runGame, type RunGameOptions } from "./run-game.js";
 
 // State + settings factories
-export { createGameState, createSettings } from "./init.js";
+export { createGameState, createSettings, initialise } from "./init.js";
 
 // Pure save helpers
 export { serializeGame, deserializeGame, summarizeSave } from "./save-pure.js";
