@@ -12,7 +12,7 @@ import {
   OBJECT_IS_FOUND,
   TerminateError,
 } from "./types.js";
-import type { GameState, GameIO, Settings } from "./types.js";
+import type { GameState, GameIO } from "./types.js";
 import {
   NOBJECTS,
   NHINTS,
@@ -23,7 +23,6 @@ import {
   objects,
   hints,
   classes,
-  arbitraryMessages,
   Msg,
 } from "./dungeon.js";
 
@@ -133,7 +132,7 @@ export function score(
   io: GameIO,
   mode: Termination,
   rspeak: (io: GameIO, game: GameState, msg: number, ...args: unknown[]) => void,
-  speak: (io: GameIO, msg: string | null, ...args: unknown[]) => void,
+  _speak: (io: GameIO, msg: string | null, ...args: unknown[]) => void,
 ): number {
   const { points, max } = computeScore(game, mode);
   mxscor = max;
