@@ -212,14 +212,53 @@ export function summarizeSave(
   let saveVersion = SAVE_VERSION;
 
   if (typeof jsonOrState === "string") {
+    // Step 1: parse JSON
+    let raw: unknown;
+    try {
+      raw = JSON.parse(jsonOrState);
+    } catch {
+      return { error: "Save file is not valid JSON." };
+    }
+
+    // Step 2: verify it's a non-null object
+    if (!isObject(raw)) {
+      return { error: "Save file is not an Open Adventure save." };
+    }
+
+    // Step 3: read header fields
+    const header = raw as Record<string, unknown>;
+    const magic = header["magic"];
+    const canary = header["canary"];
+    const version = header["version"];
+
+    // Step 4: verify magic/canary/version type
+    if (magic !== ADVENT_MAGIC || canary !== ENDIAN_MAGIC || typeof version !== "number") {
+      return { error: "Save file is not an Open Adventure save." };
+    }
+
+    // Step 5: version-skew returns partial summary with compatible: false
+    if (version !== SAVE_VERSION) {
+      return {
+        locationName: "(incompatible save)",
+        score: 0,
+        maxScore: 0,
+        treasuresFound: 0,
+        treasuresTotal: 0,
+        inventory: [],
+        phase: "pre-cave",
+        saveVersion: version,
+        currentVersion: SAVE_VERSION,
+        compatible: false,
+      };
+    }
+
+    // Step 6: full validation via deserializeGame
     const result = deserializeGame(jsonOrState);
     if (!result.ok) {
       return { error: result.message };
     }
     state = result.state;
-    // Re-parse to recover the version field (deserializeGame discards it on success).
-    const raw = JSON.parse(jsonOrState) as { version?: number };
-    if (typeof raw.version === "number") saveVersion = raw.version;
+    saveVersion = version;
   } else {
     state = jsonOrState;
   }
@@ -261,7 +300,7 @@ export function summarizeSave(
   else if (OUTSIDE(conditions, state.loc)) phase = "pre-cave";
   else phase = "in-cave";
 
-  const { points, max } = computeScore(state, Termination.endgame);
+  const { points, max } = computeScore(state, Termination.scoregame);
 
   return {
     locationName,
