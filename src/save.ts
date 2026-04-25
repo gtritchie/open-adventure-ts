@@ -69,11 +69,10 @@ export async function suspend(
   ) {
     return PhaseCode.GO_CLEAROBJ;
   }
-  game.saved = game.saved + 5;
-
   if (settings.storage === null) {
     throw new Error("suspend(): settings.storage not configured");
   }
+  game.saved = game.saved + 5;
 
   for (;;) {
     const name = await io.readline("\nFile name: ");
@@ -138,6 +137,7 @@ export async function resume(
     try {
       save = JSON.parse(data) as SaveFile;
     } catch {
+      // Not valid JSON — treat as bad magic
       rspeak(game, io, Msg.BAD_SAVE);
       return PhaseCode.GO_TOP;
     }

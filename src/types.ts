@@ -321,7 +321,14 @@ export interface GameState {
 }
 
 export interface SaveStorage {
+  /**
+   * Read save data by name. Returns `null` for any read failure — missing file,
+   * permission denied, I/O error. Must NOT throw for the missing-file case;
+   * `resume()` distinguishes "no such save" from "save is corrupt" by checking
+   * for `null` versus a parse failure on the returned string.
+   */
   read(name: string): Promise<string | null>;
+  /** Write save data under the given name. Throws on failure. */
   write(name: string, data: string): Promise<void>;
   list?(): Promise<string[]>;
   delete?(name: string): Promise<void>;
