@@ -23,7 +23,7 @@ git push
 git push --tags
 ```
 
-`scripts/release-core.sh` runs `npm version` from `packages/core` and validates that both the release commit and tag were actually created. Do not use `pnpm --filter @open-adventure/core exec npm version ...` for releases: under pnpm exec, npm can skip git tagging/committing (`Not tagging: not in a git repo or no git cmd`) and only edit `package.json`.
+`scripts/release-core.sh` runs `npm version <bump> --no-git-tag-version` inside `packages/core` to update only `package.json`, then creates the release commit and tag itself. The script drives git directly because npm's built-in tagging is unreliable in this layout: the root `package.json` has no `workspaces` field (pnpm uses `pnpm-workspace.yaml`), and running `pnpm --filter ... exec npm version ...` can leave npm thinking it isn't in a git repo (`Not tagging: not in a git repo or no git cmd`), bumping the version without committing or tagging.
 
 ## Examples
 
