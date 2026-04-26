@@ -14,11 +14,9 @@ import {
   OUTSIDE,
   INDEEP,
   OBJECT_IS_NOTFOUND,
-  OBJECT_IS_FOUND,
   OBJECT_IS_STASHED,
   OBJECT_SET_FOUND,
   OBJECT_STASHIFY,
-  PROP_STASHIFY,
   COND_LIT,
   COND_HBASE,
   COND_NOARRR,
@@ -29,7 +27,6 @@ import {
   WORD_NOT_FOUND,
   WORD_EMPTY,
   IS_FREE,
-  IS_FIXED,
   CommandState,
   PhaseCode,
   WordType,
@@ -37,7 +34,6 @@ import {
   SpeakType,
   BugType,
   STATE_FOUND,
-  STATE_NOTFOUND,
   emptyCommandWord,
 } from "./types.js";
 import type {
@@ -52,7 +48,6 @@ import {
   NHINTS,
   NTHRESHOLDS,
   NDWARVES,
-  NLOCATIONS,
   Location,
   Obj,
   Motion,
@@ -66,8 +61,6 @@ import {
   hints,
   turnThresholds,
   obituaries,
-  travel,
-  tkey,
 } from "./dungeon.js";
 import { Termination } from "./types.js";
 
@@ -167,14 +160,6 @@ function isDarkHere(game: GameState): boolean {
     (game.objects[Obj.LAMP]!.prop === ObjState.LAMP_DARK ||
       !HERE(game, Obj.LAMP))
   );
-}
-
-function LIQUID(game: GameState): number {
-  return game.objects[Obj.BOTTLE]!.prop === ObjState.WATER_BOTTLE
-    ? Obj.WATER
-    : game.objects[Obj.BOTTLE]!.prop === ObjState.OIL_BOTTLE
-      ? Obj.OIL
-      : Obj.NO_OBJECT;
 }
 
 function LIQLOC(loc: number): number {

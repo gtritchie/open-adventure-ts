@@ -16,14 +16,17 @@
     "test:watch": "vitest",
     "test:regress": "tsx scripts/regress.ts",
     "generate:graph": "pnpm --filter @open-adventure/core exec tsx scripts/make-graph.ts",
-    "play": "pnpm --filter @open-adventure/cli play"
+    "play": "pnpm --filter @open-adventure/cli play",
+    "lint": "eslint packages"
   },
   "devDependencies": {
     "@types/js-yaml": "4.0.9",
     "@types/node": "22.13.4",
+    "eslint": "^10.2.1",
     "js-yaml": "4.1.0",
     "tsx": "4.19.3",
     "typescript": "5.7.3",
+    "typescript-eslint": "^8.59.0",
     "vitest": "3.0.5"
   },
   "license": "BSD-2-Clause"
