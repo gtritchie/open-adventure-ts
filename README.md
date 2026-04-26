@@ -45,9 +45,13 @@ import { runGame, type GameIO, type SaveStorage } from "@open-adventure/core";
 
 class BrowserIO implements GameIO {
   readonly echoInput = false;
-  print(msg: string): void { /* append to a DOM log */ }
-  async readline(prompt: string): Promise<string | null> {
-    /* return a Promise that resolves when the user submits a line */
+  print(msg: string): void {
+    /* append msg to a DOM log */
+  }
+  readline(prompt: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      /* call resolve(line) when the user submits a line, resolve(null) on EOF */
+    });
   }
 }
 
