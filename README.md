@@ -122,7 +122,7 @@ git push origin vX.Y.Z
 
 For dry runs, trigger `Release Core Package` manually via `workflow_dispatch` from your current branch commit, provide a `vX.Y.Z` tag string, and leave `upload_release_asset` disabled to validate build and packaging without uploading a release asset.
 
-Detailed release steps (including the safest `pnpm version` auto-tag flow) are documented in [`docs/release.md`](docs/release.md).
+Detailed release steps (including the safest `npm version` auto-tag flow via `pnpm exec`) are documented in [`docs/release.md`](docs/release.md).
 
 ## Cross-checking against the C reference
 

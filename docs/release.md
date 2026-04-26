@@ -10,9 +10,9 @@ git checkout main
 git pull --ff-only
 git status --short
 
-# 1) Bump core version and let pnpm create commit+tag
+# 1) Bump core version and let npm create commit+tag (via pnpm exec)
 # choose ONE of: patch | minor | major | <exact-version>
-pnpm --filter @open-adventure/core version patch
+pnpm --filter @open-adventure/core exec npm version patch
 
 # 2) Verify what was created
 git log --oneline -1
