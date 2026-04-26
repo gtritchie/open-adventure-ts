@@ -1,4 +1,13 @@
+import { builtinModules } from "node:module";
 import tseslint from "typescript-eslint";
+
+// Cover both bare specifiers ("fs") and bare subpaths ("fs/promises"). The
+// "node:*" pattern in the rule below covers the prefixed forms ("node:fs",
+// "node:fs/promises").
+const bareNodeBuiltins = [
+  ...builtinModules,
+  ...builtinModules.map((m) => `${m}/*`),
+];
 
 export default [
   ...tseslint.configs.recommended,
@@ -34,14 +43,7 @@ export default [
                 "Core must not import Node built-ins. Move Node-specific code to packages/cli.",
             },
             {
-              group: [
-                "fs",
-                "path",
-                "os",
-                "readline",
-                "child_process",
-                "stream",
-              ],
+              group: bareNodeBuiltins,
               message:
                 "Core must not import Node built-ins. Use the bare 'node:' specifier in cli code.",
             },
