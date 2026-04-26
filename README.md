@@ -120,7 +120,7 @@ git push origin vX.Y.Z
 
 4. Confirm the workflow run succeeds and the `.tgz` asset is attached to the GitHub Release for that tag.
 
-For dry runs, trigger `Release Core Package` manually via `workflow_dispatch`, provide a `vX.Y.Z` tag, and leave `upload_release_asset` disabled to validate build and packaging without uploading a release asset.
+For dry runs, trigger `Release Core Package` manually via `workflow_dispatch` from your current branch commit, provide a `vX.Y.Z` tag string, and leave `upload_release_asset` disabled to validate build and packaging without uploading a release asset.
 
 ## Cross-checking against the C reference
 
