@@ -96,7 +96,12 @@ async function main(): Promise<void> {
   const exitCode = await runGame(runOpts);
 
   if (io instanceof ConsoleIO) io.close();
-  process.exit(exitCode);
+
+  // Use process.exitCode instead of process.exit() so Node drains the stdout
+  // pipe before exiting. process.exit() drops async writes still queued for
+  // a piped stdout (Linux truncates output even when writes succeeded
+  // synchronously on macOS).
+  process.exitCode = exitCode;
 }
 
 main().catch((err: unknown) => {
