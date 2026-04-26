@@ -2,7 +2,7 @@
 
 This project publishes `@open-adventure/core` release artifacts from Git tags via GitHub Actions.
 
-## Safest Auto-Tag Sequence
+## Recommended Release Sequence
 
 ```bash
 # 0) Start clean and current
@@ -10,18 +10,27 @@ git checkout main
 git pull --ff-only
 git status --short
 
-# 1) Bump core version and let npm create commit+tag (via pnpm exec)
-# choose ONE of: patch | minor | major | <exact-version>
-pnpm --filter @open-adventure/core exec npm version patch
+# 1) Bump core version with npm from the package directory.
+# This MUST be run in packages/core so npm can perform git commit+tag.
+cd packages/core
+npm version patch
+cd ../..
 
 # 2) Verify what was created
 git log --oneline -1
 git tag --list --sort=-creatordate | head -n 5
 
-# 3) Push commit and tags
+# 3) If step 1 did NOT create a release commit+tag, stop and debug before pushing.
+#    (replace X.Y.Z with the new core version)
+git status --short
+git tag --list "vX.Y.Z"
+
+# 4) Push commit and tags
 git push
 git push --tags
 ```
+
+Do not use `pnpm --filter @open-adventure/core exec npm version ...` for releases: under pnpm exec, npm can skip git tagging/committing (`Not tagging: not in a git repo or no git cmd`) and only edit `package.json`.
 
 ## Safer Single-Tag Push Variant
 
