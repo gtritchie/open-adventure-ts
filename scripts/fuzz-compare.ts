@@ -23,7 +23,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
 const ROOT = resolve(import.meta.dirname!, "..");
-const MAIN_TS = join(ROOT, "src", "main.ts");
+const MAIN_TS = join(ROOT, "packages", "cli", "src", "main.ts");
 const TSX = join(ROOT, "node_modules", ".bin", "tsx");
 const C_ADVENT = resolve(ROOT, "..", "open-adventure", "advent");
 
