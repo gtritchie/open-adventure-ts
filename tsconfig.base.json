@@ -3,8 +3,6 @@
     "target": "ES2024",
     "module": "Node16",
     "moduleResolution": "Node16",
-    "outDir": "dist",
-    "rootDir": ".",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -14,10 +12,9 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "declaration": true,
+    "declarationMap": true,
     "sourceMap": true,
     "esModuleInterop": false,
     "forceConsistentCasingInFileNames": true
-  },
-  "include": ["scripts/**/*.ts", "packages/core/scripts/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  }
 }

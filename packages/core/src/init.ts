@@ -7,6 +7,7 @@
 
 import type {
   GameState,
+  GameIO,
   Settings,
   LocationState,
   DwarfState,
@@ -136,6 +137,8 @@ export function createSettings(): Settings {
     scriptLines: null,
     scriptIndex: 0,
     debug: 0,
+    debugCallback: null,
+    storage: null,
   };
 }
 
@@ -146,9 +149,9 @@ export function createSettings(): Settings {
  *
  * Returns the seed value used.
  */
-export function initialise(game: GameState, settings: Settings): number {
+export function initialise(game: GameState, settings: Settings, io: GameIO): number {
   if (settings.oldstyle) {
-    process.stdout.write("Initialising...\n");
+    io.print("Initialising...\n");
   }
 
   const seedval = Math.trunc(Math.random() * 2147483647);

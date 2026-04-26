@@ -1,0 +1,24 @@
+{
+  "name": "@open-adventure/core",
+  "version": "1.0.0",
+  "description": "Open Adventure game engine — platform-agnostic core",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "generate": "tsx scripts/make-dungeon.ts",
+    "generate:check": "tsx scripts/make-dungeon.ts --check",
+    "test": "vitest run"
+  },
+  "license": "BSD-2-Clause"
+}

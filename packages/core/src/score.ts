@@ -12,7 +12,7 @@ import {
   OBJECT_IS_FOUND,
   TerminateError,
 } from "./types.js";
-import type { GameState, GameIO, Settings } from "./types.js";
+import type { GameState, GameIO } from "./types.js";
 import {
   NOBJECTS,
   NHINTS,
@@ -23,22 +23,20 @@ import {
   objects,
   hints,
   classes,
-  arbitraryMessages,
   Msg,
 } from "./dungeon.js";
 
 // Module-level mxscor, matching the C static variable
 let mxscor = 0;
 
-export function score(
-  game: GameState,
-  io: GameIO,
-  mode: Termination,
-  rspeak: (io: GameIO, game: GameState, msg: number, ...args: unknown[]) => void,
-  speak: (io: GameIO, msg: string | null, ...args: unknown[]) => void,
-): number {
+export interface ScoreBreakdown {
+  points: number;
+  max: number;
+}
+
+export function computeScore(game: GameState, mode: Termination): ScoreBreakdown {
   let points = 0;
-  mxscor = 0;
+  let max = 0;
 
   /*  First tally up the treasures.  Must be in building and not broken.
    *  Give the poor guy 2 points just for finding each treasure. */
@@ -63,25 +61,25 @@ export function score(
       ) {
         points += k - 2;
       }
-      mxscor += k;
+      max += k;
     }
   }
 
   /*  Now look at how he finished and how far he got. */
   points += (NDEATHS - game.numdie) * 10;
-  mxscor += NDEATHS * 10;
+  max += NDEATHS * 10;
   if (mode === Termination.endgame) {
     points += 4;
   }
-  mxscor += 4;
+  max += 4;
   if (game.dflag !== 0) {
     points += 25;
   }
-  mxscor += 25;
+  max += 25;
   if (game.closng) {
     points += 25;
   }
-  mxscor += 25;
+  max += 25;
   if (game.closed) {
     if (game.bonus === 0) {
       // none
@@ -100,17 +98,17 @@ export function score(
       points += 45;
     }
   }
-  mxscor += 45;
+  max += 45;
 
   /* Did he come to Witt's End as he should? */
   if (game.objects[Obj.MAGAZINE]!.place === Location.LOC_WITTSEND) {
     points += 1;
   }
-  mxscor += 1;
+  max += 1;
 
   /* Round it off. */
   points += 2;
-  mxscor += 2;
+  max += 2;
 
   /* Deduct for hints/turns/saves. */
   for (let i = 0; i < NHINTS; i++) {
@@ -125,6 +123,18 @@ export function score(
     points -= 10;
   }
   points = points - game.trnluz - game.saved;
+
+  return { points, max };
+}
+
+export function score(
+  game: GameState,
+  io: GameIO,
+  mode: Termination,
+  rspeak: (io: GameIO, game: GameState, msg: number, ...args: unknown[]) => void,
+): number {
+  const { points, max } = computeScore(game, mode);
+  mxscor = max;
 
   /* Return to score command if that's where we came from. */
   if (mode === Termination.scoregame) {
@@ -141,7 +151,7 @@ export function terminate(
   rspeak: (io: GameIO, game: GameState, msg: number, ...args: unknown[]) => void,
   speak: (io: GameIO, msg: string | null, ...args: unknown[]) => void,
 ): never {
-  const points = score(game, io, mode, rspeak, speak);
+  const points = score(game, io, mode, rspeak);
 
   if (points + game.trnluz + 1 >= mxscor && game.trnluz !== 0) {
     rspeak(io, game, Msg.TOOK_LONG);

@@ -320,6 +320,20 @@ export interface GameState {
   link: number[];
 }
 
+export interface SaveStorage {
+  /**
+   * Read save data by name. Returns `null` for any read failure — missing file,
+   * permission denied, I/O error. Must NOT throw for the missing-file case;
+   * `resume()` distinguishes "no such save" from "save is corrupt" by checking
+   * for `null` versus a parse failure on the returned string.
+   */
+  read(name: string): Promise<string | null>;
+  /** Write save data under the given name. Throws on failure. */
+  write(name: string, data: string): Promise<void>;
+  list?(): Promise<string[]>;
+  delete?(name: string): Promise<void>;
+}
+
 export interface Settings {
   logfp: ((line: string) => void) | null;
   oldstyle: boolean;
@@ -327,6 +341,8 @@ export interface Settings {
   scriptLines: string[] | null;
   scriptIndex: number;
   debug: number;
+  debugCallback: ((line: string) => void) | null;
+  storage: SaveStorage | null;
 }
 
 export interface SaveFile {
@@ -334,6 +350,30 @@ export interface SaveFile {
   version: number;
   canary: number;
   game: GameState;
+}
+
+export type RestoreResult =
+  | { ok: true; state: GameState }
+  | { ok: false; reason: "bad-json" | "bad-magic" | "tampering"; message: string }
+  | {
+      ok: false;
+      reason: "version-skew";
+      saveVersion: number;
+      expectedVersion: number;
+      message: string;
+    };
+
+export interface SaveSummary {
+  locationName: string;
+  score: number;
+  maxScore: number;
+  treasuresFound: number;
+  treasuresTotal: number;
+  inventory: string[];
+  phase: "pre-cave" | "in-cave" | "closing" | "closed";
+  saveVersion: number;
+  currentVersion: number;
+  compatible: boolean;
 }
 
 // ── GameIO interface ──

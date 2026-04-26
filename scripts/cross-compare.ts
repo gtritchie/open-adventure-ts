@@ -27,8 +27,8 @@ import { tmpdir } from "node:os";
 
 const ROOT = resolve(import.meta.dirname!, "..");
 const TESTS_DIR = join(ROOT, "tests");
-const MAIN_TS = join(ROOT, "src", "main.ts");
-const CHEAT_TS = join(ROOT, "src", "cheat.ts");
+const MAIN_TS = join(ROOT, "packages", "cli", "src", "main.ts");
+const CHEAT_TS = join(ROOT, "packages", "cli", "src", "cheat.ts");
 const TSX = join(ROOT, "node_modules", ".bin", "tsx");
 
 const C_ROOT = resolve(ROOT, "..", "open-adventure");

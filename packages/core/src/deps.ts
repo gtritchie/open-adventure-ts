@@ -1,27 +1,12 @@
 /*
- * CLI entry point for Open Adventure.
- *
- * Port of main() from main.c.
+ * Wire up GameLoopDeps adapters.
  *
  * SPDX-FileCopyrightText: (C) 1977, 2005 by Will Crowther and Don Woods
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
-import { writeFileSync, readFileSync } from "node:fs";
-import { parseArgs } from "node:util";
-
 import type { GameState, Settings, GameIO, Command } from "./types.js";
-import {
-  PhaseCode,
-  TerminateError,
-  Termination,
-  NOVICELIMIT,
-  BugType,
-  type SpeakType,
-} from "./types.js";
-import { Msg, arbitraryMessages } from "./dungeon.js";
-import { createGameState, createSettings, initialise } from "./init.js";
-import { gameLoop, type GameLoopDeps } from "./game-loop.js";
+import { PhaseCode, BugType, type SpeakType, Termination } from "./types.js";
 import {
   speak as fmtSpeak,
   rspeak as fmtRspeak,
@@ -46,16 +31,15 @@ import {
 import { playermove as mvPlayermove } from "./movement.js";
 import { dwarfmove as dwDwarfmove } from "./dwarves.js";
 import { randrange as rngRandrange } from "./rng.js";
-import { restoreFromFile } from "./save.js";
 import { terminate as scoreTerminate } from "./score.js";
-import { ConsoleIO, ScriptIO } from "./io.js";
+import { type GameLoopDeps } from "./game-loop.js";
 
 /**
  * Wire up GameLoopDeps adapters.
  * The deps interface uses a standardized parameter order for the game loop,
  * which may differ from the actual function signatures.
  */
-function createDeps(gameRef: GameState, settings: Settings): GameLoopDeps {
+export function createDeps(gameRef: GameState, settings: Settings): GameLoopDeps {
   const deps: GameLoopDeps = {
     speak(io: GameIO, msg: string | null, ...args: unknown[]): void {
       fmtSpeak(gameRef, io, msg, ...(args as (string | number)[]));
@@ -218,146 +202,3 @@ function createDeps(gameRef: GameState, settings: Settings): GameLoopDeps {
 
   return deps;
 }
-
-async function main(): Promise<void> {
-  const { values: vals, positionals } = parseArgs({
-    strict: true,
-    allowPositionals: true,
-    options: {
-      l: { type: "string" },
-      o: { type: "boolean" },
-      r: { type: "string" },
-      d: { type: "boolean" },
-    },
-  });
-
-  const gameState = createGameState();
-  const settings = createSettings();
-
-  // -d debug mode
-  if (vals.d) {
-    settings.debug += 1;
-  }
-
-  // -o oldstyle mode
-  if (vals.o) {
-    settings.oldstyle = true;
-    settings.prompt = false;
-  }
-
-  // -l logfile
-  if (vals.l !== undefined) {
-    const logfilename = vals.l;
-    const logLines: string[] = [];
-    settings.logfp = (line: string): void => {
-      logLines.push(line);
-      try {
-        writeFileSync(logfilename, logLines.join("\n") + "\n");
-      } catch {
-        // ignore write errors to log
-      }
-    };
-  }
-
-  // -r resume file
-  const resumeFile = vals.r;
-  if (resumeFile !== undefined) {
-    try {
-      readFileSync(resumeFile, "utf-8");
-    } catch {
-      process.stderr.write(
-        `advent: can't open save file ${resumeFile} for read\n`,
-      );
-      process.exit(1);
-    }
-  }
-
-  // Set up script files (positional args)
-  if (positionals.length > 0) {
-    const allLines: string[] = [];
-    for (const scriptFile of positionals) {
-      if (scriptFile === "-") {
-        continue;
-      }
-      try {
-        const content = readFileSync(scriptFile, "utf-8");
-        allLines.push(...content.split("\n"));
-      } catch {
-        process.stderr.write(`Can't open script ${scriptFile}\n`);
-      }
-    }
-    if (allLines.length > 0) {
-      settings.scriptLines = allLines;
-      settings.scriptIndex = 0;
-    }
-  }
-
-  // Initialize game
-  const seedval = initialise(gameState, settings);
-
-  // Create IO based on whether we have script lines
-  let io: GameIO;
-  if (settings.scriptLines !== null) {
-    io = new ScriptIO(settings.scriptLines, settings);
-  } else {
-    io = new ConsoleIO(settings);
-  }
-
-  // Welcome and instructions, or restore
-  if (resumeFile === undefined) {
-    gameState.novice = await inputYesOrNo(
-      gameState,
-      io,
-      settings,
-      arbitraryMessages[Msg.WELCOME_YOU]!,
-      arbitraryMessages[Msg.CAVE_NEARBY]!,
-      arbitraryMessages[Msg.NO_MESSAGE]!,
-    );
-    if (gameState.novice) {
-      gameState.limit = NOVICELIMIT;
-    }
-  } else {
-    restoreFromFile(resumeFile, gameState, io);
-  }
-
-  // Log the seed
-  if (settings.logfp) {
-    settings.logfp(`seed ${seedval}`);
-  }
-
-  // Build deps and run game loop
-  const deps = createDeps(gameState, settings);
-
-  try {
-    await gameLoop(gameState, settings, io, deps);
-  } catch (err: unknown) {
-    if (err instanceof TerminateError) {
-      if (io instanceof ConsoleIO) {
-        io.close();
-      }
-      process.exit(err.code);
-    }
-    throw err;
-  }
-
-  // If we reach here, game loop ended normally (EOF on input)
-  try {
-    scoreTerminate(gameState, io, Termination.quitgame, deps.rspeak, deps.speak);
-  } catch (err: unknown) {
-    if (err instanceof TerminateError) {
-      if (io instanceof ConsoleIO) {
-        io.close();
-      }
-      process.exit(err.code);
-    }
-    throw err;
-  }
-}
-
-main().catch((err: unknown) => {
-  if (err instanceof TerminateError) {
-    process.exit(err.code);
-  }
-  process.stderr.write(String(err) + "\n");
-  process.exit(1);
-});

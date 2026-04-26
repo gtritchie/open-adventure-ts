@@ -11,8 +11,8 @@
 
 import { writeFileSync } from "node:fs";
 
-import { createGameState, createSettings, initialise } from "./init.js";
-import { savefile } from "./save.js";
+import { createGameState, createSettings, initialise, savefile } from "@open-adventure/core";
+import type { GameIO } from "@open-adventure/core";
 
 const usage = `Usage: cheat [-d numdie] [-l lifetime] [-s numsaves] [-t turns] [-v version] -o savefilename
         -d number of deaths. Integer.
@@ -41,7 +41,12 @@ function main(): void {
   // Initialize game variables
   const game = createGameState();
   const settings = createSettings();
-  initialise(game, settings);
+  const io: GameIO = {
+    print(): void { /* discard */ },
+    async readline(): Promise<string | null> { return null; },
+    echoInput: false,
+  };
+  initialise(game, settings, io);
 
   // We're generating a saved game, so saved once by default
   game.saved = 1;

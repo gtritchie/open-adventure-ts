@@ -2,22 +2,23 @@
 
 A TypeScript/Node.js port of [Open Adventure](https://gitlab.com/esr/open-adventure), which is itself a forward-port of Colossal Cave Adventure 2.5 (Crowther & Woods, 1995). The goal is byte-identical gameplay output compared to the C original.
 
+## Packages
+
+This repository is a pnpm workspace with two packages:
+
+- **`@open-adventure/core`** — platform-agnostic game engine. Zero `node:*` imports (lint-enforced). Exports a host-driven `runGame()` entry point, factories, and pure save helpers (`serializeGame`, `deserializeGame`, `summarizeSave`). Browser projects can depend on this package directly.
+- **`@open-adventure/cli`** — Node.js CLI wrapper. Provides `ConsoleIO` (terminal I/O via `node:readline`) and `NodeFileStorage` (file-based saves), wires them into `runGame`, and exposes the `advent` binary.
+
 ## Prerequisites
 
 - Node.js 24 or later
-- pnpm or npm
+- pnpm (the repo is a pnpm workspace)
 
 ## Getting Started
 
 ```bash
-# Install dependencies
-pnpm install    # or: npm install
-
-# Play the game
-pnpm play       # or: npm run play
-
-# Or equivalently:
-npx tsx src/main.ts
+pnpm install    # install workspace dependencies
+pnpm play       # play the game in the terminal
 ```
 
 ### Command-line options
@@ -26,41 +27,76 @@ npx tsx src/main.ts
 -o        Old-style mode (no prompt, no stripping of articles)
 -r FILE   Resume from a saved game file
 -l FILE   Log input to a file
+-d        Enable debug output (random-trace to stderr)
 ```
 
 You can also pipe input from a file:
 
 ```bash
-npx tsx src/main.ts < script.txt
+pnpm play < script.txt
+```
+
+## Hosting `@open-adventure/core` from a browser
+
+A browser host implements two small interfaces and calls `runGame`:
+
+```typescript
+import { runGame, type GameIO, type SaveStorage } from "@open-adventure/core";
+
+class BrowserIO implements GameIO {
+  readonly echoInput = false;
+  print(msg: string): void {
+    /* append msg to a DOM log */
+  }
+  readline(prompt: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      /* call resolve(line) when the user submits a line, resolve(null) on EOF */
+    });
+  }
+}
+
+class LocalStorageStorage implements SaveStorage {
+  async read(name: string): Promise<string | null> {
+    return localStorage.getItem(`adventure:${name}`);
+  }
+  async write(name: string, data: string): Promise<void> {
+    localStorage.setItem(`adventure:${name}`, data);
+  }
+}
+
+const exitCode = await runGame({
+  io: new BrowserIO(),
+  storage: new LocalStorageStorage(),
+});
+```
+
+`runGame` returns when the game ends (player quits, dwarf kill, normal endgame). Hosts can also use the pure helpers directly to build save-picker UIs:
+
+```typescript
+import { serializeGame, deserializeGame, summarizeSave } from "@open-adventure/core";
+
+const json = serializeGame(state);                  // → JSON string
+const result = deserializeGame(json);               // → { ok, state } | { ok: false, reason, ... }
+const summary = summarizeSave(json);                // → location/score/inventory/phase metadata
 ```
 
 ## Development
 
 ```bash
-# Type-check
-pnpm typecheck              # or: npm run typecheck
+pnpm build              # compile both packages to packages/*/dist
+pnpm typecheck          # type-check both packages and root scripts
+pnpm test               # run unit tests (vitest)
+pnpm lint               # ESLint (enforces no node:* imports in core)
 
-# Build (compile TypeScript to dist/)
-pnpm build                  # or: npm run build
+pnpm test:regress       # run all 107 regression tests (TAP output)
+npx tsx scripts/regress.ts --test pitfall   # run a single regression test
 
-# Run unit tests
-pnpm test                   # or: npm test
-
-# Run all 107 regression tests (TAP output)
-pnpm test:regress           # or: npm run test:regress
-
-# Run a single regression test
-npx tsx scripts/regress.ts --test pitfall
-
-# Regenerate dungeon data from adventure.yaml
-pnpm generate               # or: npm run generate
-
-# Verify generated dungeon data is up to date
-pnpm generate:check         # or: npm run generate:check
-
-# Generate Graphviz DOT of the dungeon map (stdout)
-pnpm generate:graph         # or: npm run generate:graph
+pnpm generate           # regenerate dungeon.generated.ts from adventure.yaml
+pnpm generate:check     # verify generated dungeon data is up to date
+pnpm generate:graph     # Graphviz DOT of the dungeon map (stdout)
 ```
+
+The development scripts that consume `@open-adventure/core` (`typecheck`, `test`, `test:regress`, `play`) automatically build core first via `pnpm build:core` so a clean checkout works without a manual setup step.
 
 ## Cross-checking against the C reference
 
@@ -77,35 +113,46 @@ npx tsx scripts/fuzz-compare.ts
 ## Project Structure
 
 ```
-src/
-  main.ts              CLI entry point
-  types.ts             Interfaces, enums, constants
-  dungeon.ts           Re-exports from generated data
-  dungeon.generated.ts Generated game data (from adventure.yaml)
-  actions.ts           All verb action handlers
-  game-loop.ts         Main game loop and phase dispatch
-  movement.ts          Travel table lookup and player movement
-  dwarves.ts           Dwarf AI and pirate logic
-  input.ts             Input handling, yes/no prompts
-  io.ts                GameIO interface, ConsoleIO, ScriptIO
-  format.ts            Message formatting (speak, rspeak, pspeak)
-  vocabulary.ts        Word lookup
-  object-manipulation.ts  Carry, drop, move, destroy
-  init.ts              Game state initialization
-  save.ts              Save/resume (JSON format)
-  score.ts             Scoring and endgame
-  cheat.ts             Test utility for generating save files
-  rng.ts               Deterministic LCG PRNG
+packages/
+  core/                              @open-adventure/core (browser-portable)
+    adventure.yaml                   Game data source
+    scripts/
+      make-dungeon.ts                Code generator (reads adventure.yaml)
+      make-graph.ts                  Graphviz DOT generator
+    src/
+      index.ts                       Public API barrel
+      types.ts                       Interfaces, enums, constants
+      dungeon.ts                     Re-exports from generated data
+      dungeon.generated.ts           Generated game data
+      run-game.ts                    runGame() entry point
+      deps.ts                        GameLoopDeps wiring
+      game-loop.ts                   Main game loop and phase dispatch
+      actions.ts                     All verb action handlers
+      movement.ts                    Travel table lookup and player movement
+      dwarves.ts                     Dwarf AI and pirate logic
+      input.ts                       Input handling, yes/no prompts
+      format.ts                      Message formatting (speak, rspeak, pspeak)
+      vocabulary.ts                  Word lookup
+      object-manipulation.ts         Carry, drop, move, juggle
+      init.ts                        Game state initialization
+      save.ts                        In-game suspend/resume verbs
+      save-pure.ts                   Pure save helpers + savefile + isValid
+      score.ts                       Scoring (computeScore + terminate)
+      rng.ts                         Deterministic LCG PRNG
+      test-io.ts                     ScriptIO (in-memory GameIO for tests)
+  cli/                               @open-adventure/cli (Node.js)
+    src/
+      main.ts                        CLI entry (parses argv, calls runGame)
+      console-io.ts                  ConsoleIO (node:readline)
+      node-storage.ts                NodeFileStorage (SaveStorage on node:fs)
+      cheat.ts                       Test fixture generator
 scripts/
-  make-dungeon.ts      Code generator (reads adventure.yaml)
-  make-graph.ts        Graphviz DOT generator for the dungeon map
-  regress.ts           Regression test runner
-  cross-compare.ts     Diff TS output against the C reference binary
-  fuzz-compare.ts      Random-input comparison against the C reference binary
+  regress.ts                         Regression test runner
+  cross-compare.ts                   Diff TS output against the C reference binary
+  fuzz-compare.ts                    Random-input comparison against the C reference binary
 tests/
-  *.log                Test input scripts
-  *.chk                Expected output (compared byte-for-byte)
-maps/                  Pre-rendered SVG dungeon maps
+  *.log / *.chk                      Regression test inputs and expected outputs
+maps/                                Pre-rendered SVG dungeon maps
 ```
 
 ## License
