@@ -9,14 +9,15 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck && tsc --noEmit",
+    "build:core": "pnpm --filter @open-adventure/core build",
+    "typecheck": "pnpm build:core && pnpm -r typecheck && tsc --noEmit",
     "generate": "pnpm --filter @open-adventure/core generate",
     "generate:check": "pnpm --filter @open-adventure/core generate:check",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:regress": "tsx scripts/regress.ts",
+    "test": "pnpm build:core && vitest run",
+    "test:watch": "pnpm build:core && vitest",
+    "test:regress": "pnpm build:core && tsx scripts/regress.ts",
     "generate:graph": "pnpm --filter @open-adventure/core exec tsx scripts/make-graph.ts",
-    "play": "pnpm --filter @open-adventure/cli play",
+    "play": "pnpm build:core && pnpm --filter @open-adventure/cli play",
     "lint": "eslint packages"
   },
   "devDependencies": {
