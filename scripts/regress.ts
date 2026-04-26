@@ -13,14 +13,14 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
-import { execSync, execFileSync, type ExecFileSyncOptions } from "node:child_process";
+import { execFileSync, type ExecFileSyncOptions } from "node:child_process";
 import { readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname!, "..");
 const TESTS_DIR = join(ROOT, "tests");
-const MAIN_TS = join(ROOT, "src", "main.ts");
-const CHEAT_TS = join(ROOT, "src", "cheat.ts");
+const MAIN_TS = join(ROOT, "packages", "cli", "src", "main.ts");
+const CHEAT_TS = join(ROOT, "packages", "cli", "src", "cheat.ts");
 const TSX = join(ROOT, "node_modules", ".bin", "tsx");
 
 // Save files needed by tests, and the cheat commands to generate them

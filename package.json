@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc --noEmit",
     "generate": "pnpm --filter @open-adventure/core generate",
     "generate:check": "pnpm --filter @open-adventure/core generate:check",
     "test": "vitest run",
