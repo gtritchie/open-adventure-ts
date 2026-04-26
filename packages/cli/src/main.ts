@@ -7,7 +7,7 @@
 import { writeFileSync, readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
-import type { Settings } from "@open-adventure/core";
+import type { GameIO, Settings } from "@open-adventure/core";
 import { TerminateError, ScriptIO, createSettings, runGame } from "@open-adventure/core";
 import { ConsoleIO } from "./console-io.js";
 import { NodeFileStorage } from "./node-storage.js";
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
   }
 
   // Script files (positional args)
-  let io;
+  let io: GameIO | undefined;
   if (positionals.length > 0) {
     const allLines: string[] = [];
     for (const scriptFile of positionals) {
