@@ -1,0 +1,99 @@
+name: Release Core Package
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (format: vX.Y.Z)"
+        required: true
+        type: string
+      upload_release_asset:
+        description: "Upload the built .tgz to GitHub Release"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release-core:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve and validate release tag
+        id: validate_tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          if [ "$EVENT_NAME" = "push" ]; then
+            RELEASE_TAG="$REF_NAME"
+          else
+            RELEASE_TAG="$INPUT_TAG"
+          fi
+
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected tag in format vX.Y.Z, got '$RELEASE_TAG'"
+            exit 1
+          fi
+
+          CORE_VERSION="$(node -e "const fs=require('node:fs'); const p=JSON.parse(fs.readFileSync('packages/core/package.json','utf8')); process.stdout.write(p.version)")"
+          TAG_VERSION="${RELEASE_TAG#v}"
+
+          if [ "$TAG_VERSION" != "$CORE_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match @open-adventure/core version ($CORE_VERSION)"
+            exit 1
+          fi
+
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build @open-adventure/core
+        run: pnpm --filter @open-adventure/core build
+
+      - name: Pack @open-adventure/core
+        id: pack_core
+        shell: bash
+        run: |
+          rm -rf .release
+          mkdir -p .release
+          pnpm --filter @open-adventure/core pack --pack-destination .release
+
+          TARBALL="$(node -e "const fs=require('node:fs'); const files=fs.readdirSync('.release').filter((f)=>f.endsWith('.tgz')); if(files.length!==1){console.error('Expected exactly one .tgz in .release, found: '+files.join(', ')); process.exit(1);} process.stdout.write('.release/'+files[0]);")"
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+
+      - name: Upload packaged core as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-package-tarball
+          path: ${{ steps.pack_core.outputs.tarball }}
+
+      - name: Upload tarball to GitHub Release
+        if: github.event_name == 'push' || inputs.upload_release_asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.validate_tag.outputs.release_tag }}
+          files: ${{ steps.pack_core.outputs.tarball }}
+          fail_on_unmatched_files: true

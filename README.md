@@ -98,6 +98,30 @@ pnpm generate:graph     # Graphviz DOT of the dungeon map (stdout)
 
 The development scripts that consume `@open-adventure/core` (`typecheck`, `test`, `test:regress`, `play`) automatically build core first via `pnpm build:core` so a clean checkout works without a manual setup step.
 
+## Releasing `@open-adventure/core` on GitHub
+
+Core package release artifacts are automated through GitHub Actions. Pushing a tag in the format `vX.Y.Z` triggers the `Release Core Package` workflow, which:
+
+- validates the tag version against `packages/core/package.json`
+- builds only `@open-adventure/core`
+- creates an npm package tarball (`.tgz`)
+- uploads the tarball to the matching GitHub Release
+
+Release steps:
+
+1. Bump `packages/core/package.json` version to the target release version.
+2. Commit and push to your branch.
+3. Create and push the tag:
+
+```bash
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+4. Confirm the workflow run succeeds and the `.tgz` asset is attached to the GitHub Release for that tag.
+
+For dry runs, trigger `Release Core Package` manually via `workflow_dispatch`, provide a `vX.Y.Z` tag, and leave `upload_release_asset` disabled to validate build and packaging without uploading a release asset.
+
 ## Cross-checking against the C reference
 
 These scripts compare TypeScript output directly against the original C `advent` binary built in `../open-adventure`. Run them after any gameplay change.
