@@ -10,27 +10,30 @@ git checkout main
 git pull --ff-only
 git status --short
 
-# 1) Bump core version with npm from the package directory.
-# This MUST be run in packages/core so npm can perform git commit+tag.
-cd packages/core
-npm version patch
-cd ../..
+# 1) Bump core version via helper script
+# choose ONE of: patch | minor | major | <exact-version>
+scripts/release-core.sh patch
 
 # 2) Verify what was created
 git log --oneline -1
 git tag --list --sort=-creatordate | head -n 5
 
-# 3) If step 1 did NOT create a release commit+tag, stop and debug before pushing.
-#    (replace X.Y.Z with the new core version)
-git status --short
-git tag --list "vX.Y.Z"
-
-# 4) Push commit and tags
+# 3) Push commit and tags
 git push
 git push --tags
 ```
 
-Do not use `pnpm --filter @open-adventure/core exec npm version ...` for releases: under pnpm exec, npm can skip git tagging/committing (`Not tagging: not in a git repo or no git cmd`) and only edit `package.json`.
+`scripts/release-core.sh` runs `npm version` from `packages/core` and validates that both the release commit and tag were actually created. Do not use `pnpm --filter @open-adventure/core exec npm version ...` for releases: under pnpm exec, npm can skip git tagging/committing (`Not tagging: not in a git repo or no git cmd`) and only edit `package.json`.
+
+## Examples
+
+```bash
+# Minor release bump
+scripts/release-core.sh minor
+
+# Set an exact version
+scripts/release-core.sh 1.2.3
+```
 
 ## Safer Single-Tag Push Variant
 
