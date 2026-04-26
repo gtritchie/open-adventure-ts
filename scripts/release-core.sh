@@ -39,7 +39,7 @@ if ! git rev-parse -q --verify "refs/tags/$NEW_TAG" >/dev/null; then
   exit 1
 fi
 
-if ! git diff-tree --no-commit-id --name-only -r HEAD | rg -q '^packages/core/package\.json$'; then
+if ! git diff-tree --no-commit-id --name-only -r HEAD | grep -q '^packages/core/package\.json$'; then
   echo "Error: HEAD does not include packages/core/package.json version bump." >&2
   exit 1
 fi
