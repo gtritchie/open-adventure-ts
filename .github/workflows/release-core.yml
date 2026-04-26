@@ -100,3 +100,4 @@ jobs:
           tag_name: ${{ steps.validate_tag.outputs.release_tag }}
           files: ${{ steps.pack_core.outputs.tarball }}
           fail_on_unmatched_files: true
+          generate_release_notes: true
