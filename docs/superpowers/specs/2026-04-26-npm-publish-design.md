@@ -56,7 +56,22 @@ nothing has ever been published to the registry.
 3. **`actions/setup-node`** — add `registry-url: 'https://registry.npmjs.org'`
    so `npm publish` picks up `NODE_AUTH_TOKEN` automatically. Keep
    `cache: pnpm` and `node-version: 24`.
-4. **New step: "Publish to npm"** — placed *between* the pack step and the
+4. **Checkout `ref` condition** — extend the existing expression so that
+   *either* write-side input causes the workflow to check out `inputs.tag`
+   instead of `github.sha`. Without this, a manual dispatch with
+   `publish_to_npm: true` and `upload_release_asset: false` would build from
+   the dispatching branch's HEAD and fail the existing tag/version validation
+   step (or, worse, publish a tarball that does not correspond to the
+   requested tag). New expression:
+
+   ```yaml
+   ref: ${{ github.event_name == 'workflow_dispatch' && ((inputs.upload_release_asset || inputs.publish_to_npm) && inputs.tag || github.sha) || github.ref }}
+   ```
+
+   The semantics: tag-push uses `github.ref` (the tag); a `workflow_dispatch`
+   with any write-side input true uses `inputs.tag`; a fully-defaulted
+   diagnostic dispatch uses `github.sha`.
+5. **New step: "Publish to npm"** — placed *between* the pack step and the
    GitHub Release upload step:
 
    ```yaml
