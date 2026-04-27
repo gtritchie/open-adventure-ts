@@ -62,3 +62,12 @@ After pushing, confirm:
 - `packages/core/package.json` version matches the tag version.
 - GitHub Actions started `Release Core Package` from the tag push.
 - The GitHub Release for that tag has the core `.tgz` attached.
+- `npm view @open-adventure/core version` returns the new version.
+- `https://www.npmjs.com/package/@open-adventure/core/v/X.Y.Z` shows a "Provenance" badge linking back to the workflow run.
+
+## Token Rotation
+
+The `NPM_TOKEN` granular access token expires (1 year by default). Before expiry:
+
+1. Repeat steps 2 and 3 of [Prerequisites (one-time)](#prerequisites-one-time) to mint a new token and overwrite the `NPM_TOKEN` secret.
+2. Revoke the old token in npm's Access Tokens UI.
