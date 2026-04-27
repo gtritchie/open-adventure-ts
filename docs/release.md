@@ -14,6 +14,7 @@ The workflow authenticates with npm via [Trusted Publishing](https://docs.npmjs.
    git checkout v1.0.1
    pnpm install --frozen-lockfile
    pnpm --filter @open-adventure/core build
+   mkdir -p .release
    pnpm --filter @open-adventure/core pack --pack-destination .release
    npm publish .release/open-adventure-core-1.0.1.tgz --access public
    git checkout main
