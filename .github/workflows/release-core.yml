@@ -15,9 +15,15 @@ on:
         required: true
         default: false
         type: boolean
+      publish_to_npm:
+        description: "Publish the built .tgz to the npm registry"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release-core:
@@ -28,7 +34,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.upload_release_asset && inputs.tag || github.sha) || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && ((inputs.upload_release_asset || inputs.publish_to_npm) && inputs.tag || github.sha) || github.ref }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -92,6 +98,12 @@ jobs:
         with:
           name: core-package-tarball
           path: ${{ steps.pack_core.outputs.tarball }}
+
+      - name: Publish to npm
+        if: github.event_name == 'push' || inputs.publish_to_npm
+        env:
+          TARBALL: ${{ steps.pack_core.outputs.tarball }}
+        run: npm publish "$TARBALL" --provenance --access public
 
       - name: Upload tarball to GitHub Release
         if: github.event_name == 'push' || inputs.upload_release_asset
