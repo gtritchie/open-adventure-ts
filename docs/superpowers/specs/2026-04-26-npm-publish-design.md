@@ -7,9 +7,11 @@ Date: 2026-04-26
 
 Extend the existing `release-core.yml` workflow so that a `v*` tag push also
 publishes the packed `@open-adventure/core` tarball to the public npm registry
-with provenance, in addition to the existing GitHub Release upload. No new
-workflow file, no new job — just additional steps in the existing job, plus
-documentation updates and a one-time npm/GitHub-secret setup.
+with provenance, in addition to the existing GitHub Release upload. The
+workflow authenticates via npm's Trusted Publishing (OIDC) — no long-lived
+`NPM_TOKEN` secret is stored. No new workflow file, no new job; just
+additional steps in the existing job, plus documentation updates and a
+one-time bootstrap publish from a developer machine.
 
 ## Goals
 
@@ -17,8 +19,10 @@ documentation updates and a one-time npm/GitHub-secret setup.
   *and* an npm release for `@open-adventure/core@X.Y.Z`.
 - The artifact published to npm is byte-identical to the artifact attached to
   the GitHub Release (publish the same packed `.tgz`).
-- Releases carry npm package provenance (signed attestation of the GitHub
-  Actions run that produced them).
+- Workflow-driven releases carry npm package provenance (signed attestation of
+  the GitHub Actions run that produced them).
+- No long-lived publish credentials stored as repository secrets.
+  Authentication is short-lived OIDC, minted at publish time.
 - `workflow_dispatch` runs remain safe for diagnostics: they do not publish to
   npm or update the GitHub Release unless the operator opts in.
 
@@ -26,14 +30,16 @@ documentation updates and a one-time npm/GitHub-secret setup.
 
 - Publishing any package other than `@open-adventure/core` (the `cli` package
   is out of scope for this change).
-- Backfilling the existing `v1.0.1` GitHub Release to npm. The next version
-  bump is the first version that lands on npm.
+- Provenance on the bootstrap `v1.0.1` publish. Trusted Publishing requires the
+  package to already exist on npm before a publisher can be configured, so the
+  first version is published once from a developer laptop without provenance.
+  Every subsequent version goes through the workflow with provenance.
 - Auto-generating release notes (already in place).
 
 ## Current state
 
-`@open-adventure/core` v1.0.1 is published as a GitHub Release with the packed
-tarball attached. The release flow is:
+`@open-adventure/core` v1.0.1 exists as a GitHub Release with the packed
+tarball attached but is **not** present on npm. The release flow is:
 
 1. Maintainer runs `scripts/release-core.sh <bump>` locally — bumps
    `packages/core/package.json`, creates the release commit, creates the
@@ -42,21 +48,19 @@ tarball attached. The release flow is:
 3. Tag push triggers `.github/workflows/release-core.yml`, which builds and
    packs `@open-adventure/core` and uploads the tarball to the GitHub Release.
 
-The npm `@open-adventure` org has been created but no token is configured and
-nothing has ever been published to the registry.
+The npm `open-adventure` org has been created. No tokens or trusted publishers
+are configured yet.
 
 ## Design
 
 ### Workflow changes (`.github/workflows/release-core.yml`)
 
-1. **Permissions** — add `id-token: write` to the job's `permissions` block
-   (required for OIDC-signed npm provenance). `contents: write` remains.
+1. **Permissions** — add `id-token: write` to the job's `permissions` block.
+   This is required both for OIDC-signed npm provenance and for npm's Trusted
+   Publishing OIDC exchange. `contents: write` remains.
 2. **Inputs** — add a `publish_to_npm` boolean input to `workflow_dispatch`,
    default `false`, mirroring the existing `upload_release_asset` flag.
-3. **`actions/setup-node`** — add `registry-url: 'https://registry.npmjs.org'`
-   so `npm publish` picks up `NODE_AUTH_TOKEN` automatically. Keep
-   `cache: pnpm` and `node-version: 24`.
-4. **Checkout `ref` condition** — extend the existing expression so that
+3. **Checkout `ref` condition** — extend the existing expression so that
    *either* write-side input causes the workflow to check out `inputs.tag`
    instead of `github.sha`. Without this, a manual dispatch with
    `publish_to_npm: true` and `upload_release_asset: false` would build from
@@ -71,21 +75,26 @@ nothing has ever been published to the registry.
    The semantics: tag-push uses `github.ref` (the tag); a `workflow_dispatch`
    with any write-side input true uses `inputs.tag`; a fully-defaulted
    diagnostic dispatch uses `github.sha`.
-5. **New step: "Publish to npm"** — placed *between* the pack step and the
-   GitHub Release upload step:
+4. **New step: "Publish to npm"** — placed *between* the workflow-artifact
+   upload and the GitHub Release upload:
 
    ```yaml
    - name: Publish to npm
      if: github.event_name == 'push' || inputs.publish_to_npm
      env:
-       NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-     run: npm publish "${{ steps.pack_core.outputs.tarball }}" --provenance --access public
+       TARBALL: ${{ steps.pack_core.outputs.tarball }}
+     run: npm publish "$TARBALL" --provenance --access public
    ```
 
-   Publishing the exact tarball produced by `pnpm pack` guarantees the artifact
-   on npm matches the one attached to the GitHub Release byte-for-byte.
-   `--access public` is redundant with `publishConfig.access: "public"` in
-   `package.json` but is explicit at the publish site.
+   `npm publish` detects the GitHub Actions OIDC environment (via the
+   `id-token: write` permission) and exchanges the workflow's OIDC token for a
+   short-lived publish credential at the npm registry — no `NODE_AUTH_TOKEN`
+   or `.npmrc` configuration is required. Publishing the exact tarball
+   produced by `pnpm pack` guarantees the artifact on npm matches the one
+   attached to the GitHub Release byte-for-byte. `--access public` is
+   redundant with `publishConfig.access: "public"` in `package.json` but is
+   explicit at the publish site. The `TARBALL` env-var indirection follows
+   GitHub's workflow-injection guidance for `${{ }}` expressions in `run:`.
 
 ### Final step ordering
 
@@ -94,8 +103,9 @@ GitHub Release.
 
 Rationale for npm-before-GitHub-Release:
 
-- If `npm publish` fails (auth, network, version already exists), the GitHub
-  Release upload is skipped. The whole flow is retriable on the next tag.
+- If `npm publish` fails (OIDC denied, version already exists, network), the
+  GitHub Release upload is skipped. The whole flow is retriable on the next
+  tag.
 - If we did the reverse and `npm publish` failed, we would have a GitHub
   Release for a version that does not exist on npm — a worse half-state.
 
@@ -114,50 +124,56 @@ publishing or updating a GitHub Release.
 
 ### One-time setup (manual)
 
-These steps happen outside the repo, once, before the next release.
+These steps happen outside the repo, once, before the workflow can publish to
+npm. After this, no further credential setup or rotation is needed.
 
-1. **npm org membership** — confirm the maintainer's npm user is an owner of
-   the `open-adventure` organization.
-2. **Create a granular access token** on npm:
-   - Type: **Granular Access Token**.
-   - Permissions: **Read and write**.
-   - Packages and scopes: limited to `@open-adventure/*`.
-   - Expiration: 1 year, with a calendar reminder to rotate.
-3. **Add the GitHub secret**: in the repository, navigate to Settings →
-   Secrets and variables → Actions → New repository secret. Name `NPM_TOKEN`,
-   value = the token from step 2.
+1. **Confirm npm org membership.** The maintainer's npm user must be an owner
+   of the `open-adventure` organization.
+2. **Bootstrap publish v1.0.1 from a developer machine.** npm requires the
+   package to exist before a Trusted Publisher can be configured for it. The
+   maintainer runs `npm login` interactively and publishes a packed v1.0.1
+   tarball locally. This single bootstrap version lacks provenance; every
+   later version goes through the workflow with provenance.
+3. **Configure Trusted Publishing on npm.** On the package's settings page,
+   add a GitHub Actions Trusted Publisher pointing at
+   `gtritchie/open-adventure-ts`, workflow filename `release-core.yml`, no
+   environment.
 
-These steps are documented in `docs/release.md` (see below).
+These steps are documented in `docs/release.md`.
 
 ### Documentation updates (`docs/release.md`)
 
+- Replace the existing intro paragraph to mention npm registry publication.
 - Add a "Prerequisites (one-time)" section covering the three setup steps
-  above.
+  above with concrete shell commands for the bootstrap publish.
 - Update "Post-Push Verification" to also confirm:
-  - `https://www.npmjs.com/package/@open-adventure/core` shows the new
-    version.
-  - The version page displays a "Provenance" badge.
   - `npm view @open-adventure/core version` returns the new version.
-- Add a short "Token rotation" note: the `NPM_TOKEN` secret expires; rotate
-  before expiry by repeating one-time setup steps 2 and 3.
+  - The version page on npm displays a "Provenance" badge linking back to the
+    workflow run.
+
+No "Token Rotation" section is needed — Trusted Publishing has no long-lived
+secret to rotate.
 
 ### Existing `v1.0.1` tag
 
-The `v1.0.1` GitHub Release predates npm publishing. We do not backfill it.
-The next version bump (`v1.0.2`, `v1.1.0`, or whatever the maintainer chooses)
-is the first version to land on npm. The npm version history will start at
-that version; the GitHub Releases page retains the full history.
+The `v1.0.1` GitHub Release predates npm publishing. Under Trusted Publishing,
+the bootstrap publish (step 2 of one-time setup) publishes `v1.0.1` to npm
+manually from a developer machine. After that, the package's version history
+on npm starts at `v1.0.1`, matching the GitHub Releases history. The next
+version bump (`v1.0.2` or later) is the first version to land on npm via the
+workflow — and the first with provenance.
 
 ## Risks and mitigations
 
 | Risk                                                   | Mitigation                                                                                              |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `NPM_TOKEN` leaked from logs                           | Use `secrets.NPM_TOKEN` (masked by Actions). Never `echo` the token. `npm publish` never logs the token. |
+| Trusted Publisher configuration drifts from workflow filename | If the workflow file is renamed, npm rejects the publish until the trusted publisher entry is updated. Documented in `docs/release.md`. |
 | Version already exists on npm (re-run on same tag)     | `npm publish` fails with a clear `403`/`409`. Workflow fails loudly; no GitHub Release update.          |
 | Tag/version mismatch                                   | Existing "Resolve and validate release tag" step already enforces tag = `package.json` version.         |
 | Provenance signing flake                               | Job-level retry is not added; flakes are retriable via re-running the workflow on the same tag.         |
-| Token expiry surprises a release                       | Rotation note in `docs/release.md`; calendar reminder set when the token is created.                    |
+| OIDC outage at npm or GitHub                           | Manual recovery: maintainer can do a one-off local `npm publish` from the relevant tag. Rare event; not worth a fallback path in the workflow. |
 | `workflow_dispatch` accidentally publishing            | `publish_to_npm` input defaults to `false`; user must explicitly opt in.                                |
+| Bootstrap publish lacks provenance                     | One-time event affecting only `v1.0.1`. Acceptable trade-off for never storing a long-lived token.      |
 
 ## Verification
 
@@ -174,4 +190,5 @@ that version; the GitHub Releases page retains the full history.
 - Publishing the `cli` package to npm (separate decision; CLI distribution
   may also include alternatives like binary builds).
 - Auto-creating GitHub Issues from npm advisories or audit signals.
-- Multi-maintainer publish access (single-maintainer NPM_TOKEN today is fine).
+- Pinning specific npm CLI versions in the workflow if Node.js's bundled npm
+  ever drops below the minimum required for Trusted Publishing.

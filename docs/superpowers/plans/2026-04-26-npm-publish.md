@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Extend the existing `release-core.yml` workflow so a `v*` tag push publishes the packed `@open-adventure/core` tarball to the npm registry with provenance, in addition to the existing GitHub Release upload.
+**Goal:** Extend the existing `release-core.yml` workflow so a `v*` tag push publishes the packed `@open-adventure/core` tarball to the npm registry with provenance, in addition to the existing GitHub Release upload. Authentication uses npm's Trusted Publishing (OIDC); no long-lived secret is stored in the repository.
 
-**Architecture:** All changes live in two files: `.github/workflows/release-core.yml` (workflow logic) and `docs/release.md` (operator documentation). Workflow changes add a permission, a `workflow_dispatch` input, an `npm publish` step, and adjust the checkout ref expression. The same packed tarball produced by `pnpm pack` is what gets published to npm — no second build path. Provenance is signed by the GitHub Actions OIDC token.
+**Architecture:** All changes live in two files: `.github/workflows/release-core.yml` (workflow logic) and `docs/release.md` (operator documentation). Workflow changes add a permission, a `workflow_dispatch` input, an `npm publish` step, and adjust the checkout ref expression. The same packed tarball produced by `pnpm pack` is what gets published to npm — no second build path. Both provenance signing and Trusted Publishing rely on the workflow's OIDC token, gated by `id-token: write`.
 
-**Tech Stack:** GitHub Actions, npm 10+ (bundled with Node.js 24), `softprops/action-gh-release@v2`, `actions/setup-node@v4`. No new dependencies.
+**Tech Stack:** GitHub Actions, Node.js 24 (with bundled npm), `softprops/action-gh-release@v2`, `actions/setup-node@v4`. No new dependencies.
 
 **Spec:** `docs/superpowers/specs/2026-04-26-npm-publish-design.md`
 
@@ -15,16 +15,16 @@
 ## Pre-flight notes for the implementer
 
 - Work on the existing branch `npm-publish-design`. Do not commit directly to `main`.
-- The npm-side setup (creating the granular access token, adding `NPM_TOKEN` to GitHub secrets) is **the maintainer's responsibility, done outside this plan**. The plan only documents that work in `docs/release.md`. Do not attempt to create or rotate the token from the agent.
-- The implementation cannot be end-to-end tested without a real tag push and a real `NPM_TOKEN` secret. Verification in this plan is limited to static checks (`actionlint`) and reading the rendered workflow YAML.
+- The npm-side setup (bootstrap publish of `v1.0.1`, configuring the Trusted Publisher) is **the maintainer's responsibility, done outside this plan**. The plan only documents that work in `docs/release.md`. Do not attempt to publish or configure npm from the agent.
+- The implementation cannot be end-to-end tested without the bootstrap publish and Trusted Publisher being configured on npm. Verification in this plan is limited to static checks (`actionlint`) and reading the rendered workflow YAML.
 - After each task, commit. The repo CLAUDE.md mandates per-turn commits to keep roborev review scopes tight.
 
 ## File structure
 
 | File | Change | Responsibility |
 | --- | --- | --- |
-| `.github/workflows/release-core.yml` | Modify | Add `id-token: write` permission, `publish_to_npm` input, updated checkout ref, `registry-url` for setup-node, and a new `Publish to npm` step. |
-| `docs/release.md` | Modify | Document one-time npm setup, expand post-push verification, add token rotation note. |
+| `.github/workflows/release-core.yml` | Modify | Add `id-token: write` permission, `publish_to_npm` input, updated checkout ref, and a new `Publish to npm` step that authenticates via Trusted Publishing. |
+| `docs/release.md` | Modify | Document one-time Trusted Publishing setup (including bootstrap publish) and expand post-push verification. |
 | `docs/superpowers/specs/2026-04-26-npm-publish-design.md` | (Already committed) | Approved design spec. Reference only. |
 
 No new files are created. No code outside `.github/workflows/` and `docs/` changes.
@@ -36,7 +36,7 @@ No new files are created. No code outside `.github/workflows/` and `docs/` chang
 **Files:**
 - Modify: `.github/workflows/release-core.yml:19-20`
 
-**Why:** The npm provenance feature requires the workflow job to be able to mint an OIDC token. Without `id-token: write`, `npm publish --provenance` fails with a permissions error.
+**Why:** Both npm provenance signing and npm's Trusted Publishing OIDC exchange require the workflow job to mint an OIDC token. Without `id-token: write`, both `npm publish --provenance` and the Trusted Publishing token exchange fail with permissions errors.
 
 - [ ] **Step 1: Edit the permissions block**
 
@@ -160,58 +160,18 @@ git commit -m "Check out tag for any write-side workflow_dispatch input"
 
 ---
 
-## Task 4: Add `registry-url` to `actions/setup-node`
+## Task 4: Add the `Publish to npm` step
 
 **Files:**
-- Modify: `.github/workflows/release-core.yml:38-42`
-
-**Why:** When `setup-node` is given a `registry-url`, it writes a project-local `.npmrc` with `registry=<url>` and `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`. This is what makes `NODE_AUTH_TOKEN` automatically authenticate `npm publish`. Without it, `npm publish` would attempt anonymous access and fail.
-
-- [ ] **Step 1: Add `registry-url` to the setup-node step**
-
-Find:
-```yaml
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-```
-
-Replace with:
-```yaml
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          registry-url: "https://registry.npmjs.org"
-```
-
-- [ ] **Step 2: Run actionlint**
-
-Run: `actionlint .github/workflows/release-core.yml`
-Expected: no output.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add .github/workflows/release-core.yml
-git commit -m "Configure setup-node with npm registry URL for publish auth"
-```
-
----
-
-## Task 5: Add the `Publish to npm` step
-
-**Files:**
-- Modify: `.github/workflows/release-core.yml` — insert between the existing `Upload packaged core as workflow artifact` step (lines 90–94) and the existing `Upload tarball to GitHub Release` step (lines 96–103).
+- Modify: `.github/workflows/release-core.yml` — insert between the existing `Upload packaged core as workflow artifact` step and the existing `Upload tarball to GitHub Release` step.
 
 **Why:** This is the actual publish action. It:
 - Runs only on tag push or when `publish_to_npm` is true on a manual dispatch.
 - Publishes the *exact* tarball produced by `pnpm pack` so the artifact on npm is byte-identical to the GitHub Release attachment.
 - Adds `--provenance` to mint a signed attestation linking the artifact to this workflow run.
+- Authenticates via Trusted Publishing — `npm publish` detects the GitHub Actions OIDC environment (made available by `id-token: write` from Task 1) and exchanges the workflow's OIDC token for a short-lived publish credential at the npm registry. No `NODE_AUTH_TOKEN`, no `.npmrc`, no `registry-url`.
 - Runs **before** the GitHub Release upload, so a publish failure aborts the flow without creating a half-state.
+- Uses the `TARBALL` env-var indirection rather than inline `${{ }}` interpolation in `run:`, following GitHub's workflow-injection guidance.
 
 - [ ] **Step 1: Insert the new step**
 
@@ -237,8 +197,8 @@ Replace with:
       - name: Publish to npm
         if: github.event_name == 'push' || inputs.publish_to_npm
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish "${{ steps.pack_core.outputs.tarball }}" --provenance --access public
+          TARBALL: ${{ steps.pack_core.outputs.tarball }}
+        run: npm publish "$TARBALL" --provenance --access public
 
       - name: Upload tarball to GitHub Release
 ```
@@ -254,7 +214,7 @@ Read the workflow file end-to-end. Confirm:
 - The `Publish to npm` step appears between the workflow-artifact upload and the GitHub Release upload (not before the pack step, not after the release upload).
 - `if:` condition matches the spec: `github.event_name == 'push' || inputs.publish_to_npm`.
 - `${{ steps.pack_core.outputs.tarball }}` references the same output the GitHub Release upload uses (consistent artifact).
-- `NODE_AUTH_TOKEN` is set from `secrets.NPM_TOKEN` (not from any other secret name).
+- No `NODE_AUTH_TOKEN`, no `secrets.NPM_TOKEN`, no `registry-url` setting on `setup-node` — Trusted Publishing requires none of these.
 
 - [ ] **Step 4: Commit**
 
@@ -265,12 +225,12 @@ git commit -m "Publish core tarball to npm with provenance on tag push"
 
 ---
 
-## Task 6: Document the one-time npm setup in `docs/release.md`
+## Task 5: Document the one-time Trusted Publishing setup in `docs/release.md`
 
 **Files:**
 - Modify: `docs/release.md` — insert a new section between the existing intro paragraph and `## Recommended Release Sequence`.
 
-**Why:** The `NPM_TOKEN` secret and npm org membership are out-of-repo prerequisites the maintainer must set up once. Without them, the new publish step fails on the next tag push. The current document does not mention either.
+**Why:** Two pieces of out-of-repo state must exist before the workflow can publish: the package must be on npm (Trusted Publishing requires the package to exist), and a Trusted Publisher entry on npm must point at this workflow. The current document mentions neither.
 
 - [ ] **Step 1: Insert the prerequisites section**
 
@@ -291,14 +251,27 @@ This project publishes `@open-adventure/core` release artifacts from Git tags vi
 
 ## Prerequisites (one-time)
 
-These steps are needed once before the first npm release, and again whenever the npm token expires.
+The workflow authenticates with npm via [Trusted Publishing](https://docs.npmjs.com/trusted-publishers) (OIDC), so there is no long-lived token to manage. These steps run once, total.
 
 1. **Confirm npm org membership.** The maintainer must be an owner of the `open-adventure` npm organization.
-2. **Create a granular npm access token.** In npm's web UI, under Access Tokens, create a new **Granular Access Token**:
-   - Permissions: **Read and write**.
-   - Packages and scopes: limited to `@open-adventure/*`.
-   - Expiration: 1 year. Set a calendar reminder to rotate before it expires.
-3. **Add the token as a GitHub repository secret.** In the repository, go to Settings → Secrets and variables → Actions → New repository secret. Name it `NPM_TOKEN` and paste the token value from step 2.
+2. **Bootstrap publish from a developer machine (one-time).** npm requires the package to exist before a Trusted Publisher can be configured for it. Publish `v1.0.1` once, from your local machine, to claim the package on the registry:
+
+   ```bash
+   npm login                                  # interactive; uses your npm account
+   git checkout v1.0.1
+   pnpm install --frozen-lockfile
+   pnpm --filter @open-adventure/core build
+   pnpm --filter @open-adventure/core pack --pack-destination .release
+   npm publish .release/open-adventure-core-1.0.1.tgz --access public
+   git checkout main
+   ```
+
+   This bootstrap version is published without provenance; every subsequent version goes through the workflow and carries a provenance attestation.
+3. **Configure Trusted Publishing on npm.** In npm's web UI, navigate to the package page → Settings → Trusted Publisher → add a GitHub Actions publisher with:
+   - Repository owner: `gtritchie`
+   - Repository name: `open-adventure-ts`
+   - Workflow filename: `release-core.yml`
+   - Environment: leave blank
 
 ## Recommended Release Sequence
 ```
@@ -307,22 +280,22 @@ These steps are needed once before the first npm release, and again whenever the
 
 Read `docs/release.md` end-to-end. Confirm:
 - The new section sits between the intro and `## Recommended Release Sequence`.
-- The intro paragraph now mentions npm registry publication.
-- All three numbered prerequisites appear and are unambiguous about what to click in npm's UI.
+- The intro paragraph mentions npm registry publication.
+- All three numbered prerequisites appear and are unambiguous.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add docs/release.md
-git commit -m "Document one-time npm setup in release guide"
+git commit -m "Document one-time Trusted Publishing setup in release guide"
 ```
 
 ---
 
-## Task 7: Expand `docs/release.md` post-push verification
+## Task 6: Expand `docs/release.md` post-push verification
 
 **Files:**
-- Modify: `docs/release.md` — the `## Post-Push Verification` section (currently 4 bullets).
+- Modify: `docs/release.md` — the `## Post-Push Verification` section.
 
 **Why:** After a release lands, the maintainer needs to confirm npm published successfully and provenance was attached. The current checklist only covers GitHub Releases.
 
@@ -352,32 +325,26 @@ After pushing, confirm:
 - The GitHub Release for that tag has the core `.tgz` attached.
 - `npm view @open-adventure/core version` returns the new version.
 - `https://www.npmjs.com/package/@open-adventure/core/v/X.Y.Z` shows a "Provenance" badge linking back to the workflow run.
-
-## Token Rotation
-
-The `NPM_TOKEN` granular access token expires (1 year by default). Before expiry:
-
-1. Repeat steps 2 and 3 of [Prerequisites (one-time)](#prerequisites-one-time) to mint a new token and overwrite the `NPM_TOKEN` secret.
-2. Revoke the old token in npm's Access Tokens UI.
 ```
+
+No "Token Rotation" section is needed — Trusted Publishing has no long-lived secret to rotate.
 
 - [ ] **Step 2: Verify the rendered Markdown**
 
 Read `docs/release.md` end-to-end. Confirm:
 - Two new verification bullets cover npm version and provenance badge.
-- The new `## Token Rotation` section is the last section and links back to the prerequisites anchor (`#prerequisites-one-time`).
-- The anchor matches the heading slug GitHub will generate (lowercase, hyphens, parentheses dropped).
+- No references to `NPM_TOKEN`, token rotation, or expiring secrets.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add docs/release.md
-git commit -m "Add npm verification and token rotation guidance"
+git commit -m "Add npm verification to release post-push checklist"
 ```
 
 ---
 
-## Task 8: Final verification pass
+## Task 7: Final verification pass
 
 **Files:** none modified.
 
@@ -412,12 +379,13 @@ git push -u origin npm-publish-design
 gh pr create --title "Publish @open-adventure/core to npm on tag push" --body "$(cat <<'EOF'
 ## Summary
 - Extends the release workflow to publish the packed core tarball to npm with provenance on every `v*` tag push.
+- Authentication uses npm Trusted Publishing (OIDC), so no `NPM_TOKEN` secret is stored in the repository.
 - Adds a `publish_to_npm` boolean input to `workflow_dispatch` so manual runs can opt in.
-- Documents the one-time `NPM_TOKEN` setup, post-push verification, and token rotation in `docs/release.md`.
+- Documents the one-time Trusted Publishing setup (including bootstrap publish of v1.0.1) and post-push verification in `docs/release.md`.
 
 ## Test plan
 - [ ] `actionlint` passes on the modified workflow.
-- [ ] After merge: maintainer creates the npm granular token and adds the `NPM_TOKEN` repo secret.
+- [ ] After merge: maintainer bootstraps v1.0.1 publish from local machine and configures the Trusted Publisher on npm.
 - [ ] Manual `workflow_dispatch` run with both inputs `false` succeeds (build + pack only) and produces a workflow artifact tarball.
 - [ ] First real tag push (`vX.Y.Z`) results in: GitHub Release with `.tgz` attached, `npm view @open-adventure/core version` returns the new version, and the npm version page shows a Provenance badge.
 EOF
@@ -428,6 +396,6 @@ EOF
 
 ## Self-review (already performed)
 
-- **Spec coverage:** All four spec sections (Workflow changes, One-time setup, Documentation updates, Existing v1.0.1 tag) map to tasks: workflow change items 1–5 → Tasks 1–5; one-time setup → Task 6; documentation updates → Tasks 6 and 7; existing v1.0.1 → no task needed (spec explicitly says "do not backfill").
+- **Spec coverage:** All four spec sections (Workflow changes, One-time setup, Documentation updates, Existing v1.0.1 tag) map to tasks: workflow change items 1–4 → Tasks 1–4; one-time setup → Task 5; documentation updates → Tasks 5 and 6; existing v1.0.1 → covered by the Task 5 bootstrap docs.
 - **Placeholder scan:** No TBDs, no "add appropriate error handling", no "similar to Task N". Every code block is fully written.
-- **Type consistency:** No types defined. The single workflow expression is consistent across Tasks 2 and 3 (`inputs.publish_to_npm` matches the input name added in Task 2). The secret name `NPM_TOKEN` is consistent across Tasks 5 and 6. The tarball reference `steps.pack_core.outputs.tarball` matches the existing pack step's `id: pack_core` and output.
+- **Type consistency:** No types defined. The single workflow expression is consistent across Tasks 2 and 3 (`inputs.publish_to_npm` matches the input name added in Task 2). No secrets are referenced in the implementation. The tarball reference `steps.pack_core.outputs.tarball` matches the existing pack step's `id: pack_core` and output.
