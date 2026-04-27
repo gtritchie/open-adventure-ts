@@ -100,6 +100,13 @@ jobs:
           name: core-package-tarball
           path: ${{ steps.pack_core.outputs.tarball }}
 
+      - name: Publish to npm
+        if: github.event_name == 'push' || inputs.publish_to_npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TARBALL: ${{ steps.pack_core.outputs.tarball }}
+        run: npm publish "$TARBALL" --provenance --access public
+
       - name: Upload tarball to GitHub Release
         if: github.event_name == 'push' || inputs.upload_release_asset
         uses: softprops/action-gh-release@v2
