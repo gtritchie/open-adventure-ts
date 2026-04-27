@@ -1,6 +1,17 @@
 # Core Release Guide
 
-This project publishes `@open-adventure/core` release artifacts from Git tags via GitHub Actions.
+This project publishes `@open-adventure/core` release artifacts from Git tags via GitHub Actions. Each tag push uploads the packed tarball to the GitHub Release and publishes it to the npm registry with package provenance.
+
+## Prerequisites (one-time)
+
+These steps are needed once before the first npm release, and again whenever the npm token expires.
+
+1. **Confirm npm org membership.** The maintainer must be an owner of the `open-adventure` npm organization.
+2. **Create a granular npm access token.** In npm's web UI, under Access Tokens, create a new **Granular Access Token**:
+   - Permissions: **Read and write**.
+   - Packages and scopes: limited to `@open-adventure/*`.
+   - Expiration: 1 year. Set a calendar reminder to rotate before it expires.
+3. **Add the token as a GitHub repository secret.** In the repository, go to Settings → Secrets and variables → Actions → New repository secret. Name it `NPM_TOKEN` and paste the token value from step 2.
 
 ## Recommended Release Sequence
 
