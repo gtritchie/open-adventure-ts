@@ -4,14 +4,27 @@ This project publishes `@open-adventure/core` release artifacts from Git tags vi
 
 ## Prerequisites (one-time)
 
-These steps are needed once before the first npm release, and again whenever the npm token expires.
+The workflow authenticates with npm via [Trusted Publishing](https://docs.npmjs.com/trusted-publishers) (OIDC), so there is no long-lived token to manage. These steps run once, total.
 
 1. **Confirm npm org membership.** The maintainer must be an owner of the `open-adventure` npm organization.
-2. **Create a granular npm access token.** In npm's web UI, under Access Tokens, create a new **Granular Access Token**:
-   - Permissions: **Read and write**.
-   - Packages and scopes: limited to `@open-adventure/*`.
-   - Expiration: 1 year. Set a calendar reminder to rotate before it expires.
-3. **Add the token as a GitHub repository secret.** In the repository, go to Settings → Secrets and variables → Actions → New repository secret. Name it `NPM_TOKEN` and paste the token value from step 2.
+2. **Bootstrap publish from a developer machine (one-time).** npm requires the package to exist before a Trusted Publisher can be configured for it. Publish `v1.0.1` once, from your local machine, to claim the package on the registry:
+
+   ```bash
+   npm login                                  # interactive; uses your npm account
+   git checkout v1.0.1
+   pnpm install --frozen-lockfile
+   pnpm --filter @open-adventure/core build
+   pnpm --filter @open-adventure/core pack --pack-destination .release
+   npm publish .release/open-adventure-core-1.0.1.tgz --access public
+   git checkout main
+   ```
+
+   This bootstrap version is published without provenance; every subsequent version goes through the workflow and carries a provenance attestation.
+3. **Configure Trusted Publishing on npm.** In npm's web UI, navigate to the package page → Settings → Trusted Publisher → add a GitHub Actions publisher with:
+   - Repository owner: `gtritchie`
+   - Repository name: `open-adventure-ts`
+   - Workflow filename: `release-core.yml`
+   - Environment: leave blank
 
 ## Recommended Release Sequence
 
@@ -64,10 +77,3 @@ After pushing, confirm:
 - The GitHub Release for that tag has the core `.tgz` attached.
 - `npm view @open-adventure/core version` returns the new version.
 - `https://www.npmjs.com/package/@open-adventure/core/v/X.Y.Z` shows a "Provenance" badge linking back to the workflow run.
-
-## Token Rotation
-
-The `NPM_TOKEN` granular access token expires (1 year by default). Before expiry:
-
-1. Repeat steps 2 and 3 of [Prerequisites (one-time)](#prerequisites-one-time) to mint a new token and overwrite the `NPM_TOKEN` secret.
-2. Revoke the old token in npm's Access Tokens UI.
