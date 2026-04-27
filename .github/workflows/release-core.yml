@@ -15,6 +15,11 @@ on:
         required: true
         default: false
         type: boolean
+      publish_to_npm:
+        description: "Publish the built .tgz to the npm registry"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
