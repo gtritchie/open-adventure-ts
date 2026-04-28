@@ -43,10 +43,12 @@ scripts/release-core.sh patch
 git log --oneline -1
 git tag --list --sort=-creatordate | head -n 5
 
-# 3) Push commit and tags
+# 3) Push commit and the new tag (replace vX.Y.Z with the tag the script created)
 git push
-git push --tags
+git push origin vX.Y.Z
 ```
+
+Pushing only the new tag (instead of `git push --tags`) avoids publishing any unrelated local tags.
 
 `scripts/release-core.sh` runs `npm version <bump> --no-git-tag-version` inside `packages/core` to update only `package.json`, then creates the release commit and tag itself. The script drives git directly because npm's built-in tagging is unreliable in this layout: the root `package.json` has no `workspaces` field (pnpm uses `pnpm-workspace.yaml`), and running `pnpm --filter ... exec npm version ...` can leave npm thinking it isn't in a git repo (`Not tagging: not in a git repo or no git cmd`), bumping the version without committing or tagging.
 
@@ -58,14 +60,6 @@ scripts/release-core.sh minor
 
 # Set an exact version
 scripts/release-core.sh 1.2.3
-```
-
-## Safer Single-Tag Push Variant
-
-If you want to avoid pushing unrelated local tags, push only the new release tag:
-
-```bash
-git push origin vX.Y.Z
 ```
 
 ## Post-Push Verification
